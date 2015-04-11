@@ -1,0 +1,12 @@
+2x slower with HashTable instead of Map for conts and next
+3x faster without ReaderT for ParserState
+6% faster without lens dependency
+10% faster with inlining
+45% faster with homemade, specialised, pipes
+55% faster with CPS transform
+16% faster without using Map of positions (only list)
+slower but uses less memory with vector
+23% faster after refactoring
+18% faster without strict fmap f Pure
+30% faster with simpler driver
+13% faster without parser monad
