@@ -2,6 +2,7 @@ Earley
 ======
 
 This (Text.Earley) is a library consisting of two parts:
+
 1. Text.Earley.Grammar:
    An embedded context-free grammar (CFG) domain-specific language (DSL) with
    semantic action specification in applicative style.
