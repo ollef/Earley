@@ -93,30 +93,21 @@ simplifyCont cont = readSTRef cont >>= go False
 -------------------------------------------------------------------------------
 -- * Grammars
 -------------------------------------------------------------------------------
-type GrammarState s = STRef s Int
-
--- | A concrete grammar type (that the 'Grammar' monad can be interpreted to).
-type GrammarM s a = GrammarState s -> ST s a
-
-initialGrammarState :: ST s (GrammarState s)
-initialGrammarState = newSTRef 0
-
--- | Interpret an abstract 'Grammar' into a concrete 'GrammarM'.
-grammarM :: Grammar (Rule s r) a -> GrammarM s a
-grammarM g s = case g of
+-- | Interpret an abstract 'Grammar'.
+grammar :: Grammar (Rule s r) a -> ST s a
+grammar g = case g of
   RuleBind ps k -> do
     c  <- newSTRef =<< newSTRef mempty
     nr <- newSTRef Nothing
-    grammarM (k $ NonTerminal (Rule ps nr c) $ Pure id) s
+    grammar $ k $ NonTerminal (Rule ps nr c) $ Pure id
   FixBind f k   -> do
-    a <- mfix $ fmap (`grammarM` s) f
-    grammarM (k a) s
+    a <- mfix $ fmap grammar f
+    grammar $ k a
   Return x      -> return x
 
 -- | Given a grammar, construct an initial state.
-initialState :: GrammarM s (ProdR s a t a) -> ST s (State s a t a)
-initialState g = do
-  r  <- g =<< initialGrammarState
+initialState :: ProdR s a t a -> ST s (State s a t a)
+initialState r = do
   rs <- newSTRef [FinalCont id]
   return $ State (-1) r rs
 
@@ -192,7 +183,7 @@ parser :: ListLike i t
        -> i
        -> ST s (Result s i a)
 parser g xs = do
-  s <- initialState $ grammarM g
+  s <- initialState =<< grammar g
   parse [s] [] (return ()) 0 xs
 
 -- | Return all parses from the result of a given parser. The result may
