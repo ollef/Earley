@@ -1,5 +1,4 @@
 {-# LANGUAGE RecursiveDo #-}
-import Control.Applicative
 import Data.Char
 import System.Environment
 

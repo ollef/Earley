@@ -1,10 +1,8 @@
 {-# LANGUAGE RecursiveDo #-}
-import Control.Applicative hiding (some)
 import Control.Arrow(first)
 import Data.Foldable(foldrM)
 import System.Environment
 import Text.Earley
-import Data.List
 import qualified Data.Set as S
 
 type Ident = String

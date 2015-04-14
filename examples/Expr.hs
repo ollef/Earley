@@ -1,5 +1,4 @@
 {-# LANGUAGE ScopedTypeVariables, RecursiveDo #-}
-import Control.Applicative
 import Data.Char
 import System.Environment
 import Text.Earley as E
