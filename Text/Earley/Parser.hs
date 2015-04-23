@@ -16,8 +16,6 @@ import qualified Data.ListLike as ListLike
 import Data.STRef.Lazy
 import Text.Earley.Grammar
 
-import Debug.Trace
-
 -------------------------------------------------------------------------------
 -- * Concrete rules and productions
 -------------------------------------------------------------------------------
@@ -212,7 +210,7 @@ parse (st:ss) !next !reset names !pos !ts = case st of
 
     Named pr' n -> parse (State spos pr' scont : ss) next reset (n : names) pos ts
 
-{-# SPECIALISE parser :: (forall r. Grammar r e (Prod r e t a)) -> [t] -> ST s (Result s e [t] a) #-}
+{-# INLINE parser #-}
 -- | Create a parser from the given grammar.
 parser :: ListLike i t
        => (forall r. Grammar r e (Prod r e t a))
@@ -233,7 +231,7 @@ allParses p = runST $ p >>= go
       Ended report     -> return ([], report)
       Parsed a pos i k -> fmap (first ((a, pos) :)) $ go =<< k i
 
-{-# SPECIALISE fullParses :: (forall s. ST s (Result s e [t] a)) -> ([a], Report e [t]) #-}
+{-# INLINE fullParses #-}
 -- | Return all parses that reached the end of the input from the result of a
 --   given parser.
 fullParses :: ListLike i t => (forall s. ST s (Result s e i a)) -> ([a], Report e i)
