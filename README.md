@@ -103,9 +103,14 @@ the Haskell ecosystem:
 * The grammar language is similar to that of many parser combinators (Parsec,
   Attoparsec, parallel parsing processes, etc.), providing an applicative
   interface, but the parser gracefully handles all finite CFGs, including those
-  with left-recursion. On the other hand, it is not monadic and does not
-  support context-sensitive or infinite grammars, which are supported by many
-  parser combinator libraries.
+  with left-recursion. On the other hand, its productions are not monadic
+  meaning that it does not support context-sensitive or infinite grammars,
+  which are supported by many parser combinator libraries.
+
+  Note: The `Grammar` type is a `Monad` (used to provide observable sharing)
+  but it lives a layer above productions. It cannot be used to decide what
+  production to use depending on the result of a previous production, i.e. it
+  does not give us monadic parsing.
 
 The parsing algorithm
 ---------------------
