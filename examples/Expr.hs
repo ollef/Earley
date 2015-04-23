@@ -1,45 +1,31 @@
-{-# LANGUAGE ScopedTypeVariables, RecursiveDo #-}
+{-# LANGUAGE RecursiveDo #-}
+import Control.Applicative
 import Data.Char
 import System.Environment
-import Control.Applicative
-import Text.Earley as E
+import Text.Earley
 
 data Expr
-  = Expr :+: Expr
-  | Expr :*: Expr
+  = Add Expr Expr
+  | Mul Expr Expr
   | Var String
-  | Lit Int
-  deriving (Show)
+  deriving (Eq, Ord, Show)
 
-grammar :: forall r. Grammar r String (Prod r String Char Expr)
-grammar = mdo
-
-  whitespace <- rule $ many $ satisfy isSpace
-
-  let token :: Prod r String Char a -> Prod r String Char a
-      token p = whitespace *> p
-
-      sym x   = token (symbol x) <?> [x]
-
-      ident   = token $ (:) <$> satisfy isAlpha <*> many (satisfy isAlphaNum) <?> "identifier"
-      num     = token $ some (satisfy isDigit) <?> "number"
-
-  expr0 <- rule
-     $ (Lit . read)  <$> num
-    <|> Var  <$> ident
-    <|> sym '(' *> expr2 <* sym ')'
-
-  expr1 <- rule
-    $ (:*:) <$> expr1 <* sym '*' <*> expr0
-   <|> expr0
-
-  expr2 <- rule
-    $ (:+:) <$> expr2 <* sym '+' <*> expr1
-   <|> expr1
-
-  return $ expr2 <* whitespace
+expr :: Grammar r String (Prod r String String Expr)
+expr = mdo
+  x1 <- rule $ Add <$> x1 <* namedSymbol "+" <*> x2
+            <|> x2
+            <?> "sum"
+  x2 <- rule $ Mul <$> x2 <* namedSymbol "*" <*> x3
+            <|> x3
+            <?> "product"
+  x3 <- rule $ Var <$> (satisfy ident <?> "identifier")
+            <|> namedSymbol "(" *> x1 <* namedSymbol ")"
+  return x1
+  where
+    ident (x:_) = isAlpha x
+    ident _     = False
 
 main :: IO ()
 main = do
   x:_ <- getArgs
-  print $ fullParses $ parser grammar x
+  print $ fullParses $ parser expr $ words x
