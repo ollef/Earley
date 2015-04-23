@@ -1,6 +1,7 @@
 {-# LANGUAGE RecursiveDo #-}
+import Control.Applicative
 import Control.Arrow(first)
-import Data.Foldable(foldrM)
+import Data.Foldable(asum, foldrM)
 import System.Environment
 import Text.Earley
 import qualified Data.Set as S
@@ -24,30 +25,27 @@ data Assoc = LeftAssoc | RightAssoc | NonAssoc
 data Expr = V HoleyIdent | App Expr [Expr]
   deriving Show
 
-grammar :: [[(HoleyIdent, Assoc)]] -> Grammar r (Prod r String Expr)
+grammar :: [[(HoleyIdent, Assoc)]] -> Grammar r String (Prod r String String Expr)
 grammar table = mdo
   let ident = (V . (:[]) . Ident) <$> satisfy (`S.notMember` mixfixParts)
   expr  <- foldrM ($) ident (normalApp expr : levels expr)
   return expr
   where
     mixfixParts = S.fromList [s | xs <- table, (ys, _) <- xs, Ident s <- ys]
-    normalApp expr next = do
-      args <- some next
-      rule [ App <$> expr <*> args
-           , next
-           ]
+    normalApp expr next = rule $ App <$> expr <*> some next
+                              <|> next
     levels expr = map (level expr) table
     level expr idents next = mdo
-      same <- rule $ next : map (mixfixIdent same) idents
+      same <- rule $ asum $ next : map (mixfixIdent same) idents
       return same
       where
         mixfixIdent same (ps, a) = App (V ps) <$> go ps
           where
             go ps' = case ps' of
-              [Ident s]         -> []    <$  symbol s
+              [Ident s]         -> []    <$  namedSymbol s
               Hole:rest         -> (:)   <$> (if a == RightAssoc then next else same) <*> go rest
-              [Ident s, Hole]   -> (:[]) <$  symbol s <*> (if a == LeftAssoc then next else same)
-              Ident s:Hole:rest -> (:)   <$  symbol s <*> expr <*> go rest
+              [Ident s, Hole]   -> (:[]) <$  namedSymbol s <*> (if a == LeftAssoc then next else same)
+              Ident s:Hole:rest -> (:)   <$  namedSymbol s <*> expr <*> go rest
               _                 -> error "invalid identifier"
 
 identTable :: [[(HoleyIdent, Assoc)]]
@@ -85,4 +83,4 @@ tokenize (x:xs)
 main :: IO ()
 main = do
   x:_ <- getArgs
-  print $ map pretty $ fullParses $ parser (grammar identTable) (tokenize x)
+  print $ first (map pretty) $ fullParses $ parser (grammar identTable) (tokenize x)

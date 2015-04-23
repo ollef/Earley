@@ -11,17 +11,16 @@ This (Text.Earley) is a library consisting of two parts:
    into strings is the following:
 
    ```haskell
-      expr :: Grammar r (Prod r String Expr)
+      expr :: Grammar r String (Prod r String String Expr)
       expr = mdo
-        x1 <- rule [ Add <$> x1 <* symbol "+" <*> x2
-                   , x2
-                   ]
-        x2 <- rule [ Mul <$> x2 <* symbol "*" <*> x3
-                   , x3
-                   ]
-        x3 <- rule [ Var <$> satisfy ident
-                   , symbol "(" *> x1 <* symbol ")"
-                   ]
+        x1 <- rule $ Add <$> x1 <* namedSymbol "+" <*> x2
+                  <|> x2
+                  <?> "sum"
+        x2 <- rule $ Mul <$> x2 <* namedSymbol "*" <*> x3
+                  <|> x3
+                  <?> "product"
+        x3 <- rule $ Var <$> (satisfy ident <?> "identifier")
+                  <|> namedSymbol "(" *> x1 <* namedSymbol ")"
         return x1
         where
           ident (x:_) = isAlpha x
@@ -36,7 +35,23 @@ This (Text.Earley) is a library consisting of two parts:
 
    ```haskell
       fullParses $ parser expr $ words "a + b * ( c + d )"
-      = [Add (Var "a") (Mul (Var "b") (Add (Var "c") (Var "d")))]
+      = ( [Add (Var "a") (Mul (Var "b") (Add (Var "c") (Var "d")))]
+        , Report {...}
+        )
+   ```
+
+   Another invocation, which shows the error reporting capabilities (giving the
+   last position that the parser reached at and what it expected at that
+   point), is the following:
+
+   ```haskell
+      fullParses $ parser expr $ words "a +"
+      = ( []
+        , Report { position   = 2
+                 , expected   = ["(","identifier","product"]
+                 , unconsumed = []
+                 }
+        )
    ```
 
 Compared to parser generators and combinator libraries
@@ -51,7 +66,7 @@ the Haskell ecosystem:
   tool. This also means that you are free to use the abstraction facilities of
   Haskell when writing a grammar. Currently the library requires a linear
   traversal of the grammar before use, which is usually fast enough to do at
-  run time.
+  run time, but precludes infinite grammars.
 
 * The grammar language is similar to that of many parser combinators (Parsec,
   Attoparsec, parallel parsing processes, etc.), providing an applicative
@@ -65,10 +80,10 @@ The parsing algorithm
 
 The parsing algorithm that this library uses is based on [Earley's parsing
 algorithm](https://en.wikipedia.org/wiki/Earley_parser).  The algorithm has
-been modified to produce online parse results, and to allow garbage collection
-of the item sets. Essentially, instead of storing a sequence of sets of items
-like in the original algorithm, the modified algorithm just stores pointers
-back to sets of reachable items.
+been modified to produce online parse results, to give good error messages, and
+to allow garbage collection of the item sets. Essentially, instead of storing a
+sequence of sets of items like in the original algorithm, the modified
+algorithm just stores pointers back to sets of reachable items.
 
 The worst-case run time performance of the Earley parsing algorithm is cubic in
 the length of the input, but for large classes of grammars it is linear. It

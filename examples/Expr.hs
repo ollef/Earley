@@ -1,6 +1,7 @@
 {-# LANGUAGE ScopedTypeVariables, RecursiveDo #-}
 import Data.Char
 import System.Environment
+import Control.Applicative
 import Text.Earley as E
 
 data Expr
@@ -10,42 +11,35 @@ data Expr
   | Lit Int
   deriving (Show)
 
-grammar :: forall r. Grammar r (Prod r Char Expr)
+grammar :: forall r. Grammar r String (Prod r String Char Expr)
 grammar = mdo
 
-  whitespace <- E.many $ satisfy isSpace
-  identCont <- E.many $ satisfy isAlphaNum
-  num       <- E.some (satisfy isDigit)
+  whitespace <- rule $ many $ satisfy isSpace
 
-  let token :: Prod r Char a -> Prod r Char a
-      token p  = whitespace *> p
-      parens p = token (symbol '(') *> p <* token (symbol ')')
-      ident    = (:) <$> satisfy isAlpha <*> identCont
-      eident = token  ident
-      enum   = token  num
-      eplus  = token $ symbol '+'
-      etimes = token $ symbol '*'
+  let token :: Prod r String Char a -> Prod r String Char a
+      token p = whitespace *> p
+
+      sym x   = token (symbol x) <?> [x]
+
+      ident   = token $ (:) <$> satisfy isAlpha <*> many (satisfy isAlphaNum) <?> "identifier"
+      num     = token $ some (satisfy isDigit) <?> "number"
 
   expr0 <- rule
-    [ (Lit . read)  <$> enum
-    , Var  <$> eident
-    , parens expr2
-    ]
+     $ (Lit . read)  <$> num
+    <|> Var  <$> ident
+    <|> sym '(' *> expr2 <* sym ')'
 
   expr1 <- rule
-    [ (:*:) <$> expr1 <* etimes <*> expr0
-    , expr0
-    ]
+    $ (:*:) <$> expr1 <* sym '*' <*> expr0
+   <|> expr0
 
   expr2 <- rule
-    [ (:+:) <$> expr2 <* eplus <*> expr1
-    , expr1
-    ]
+    $ (:+:) <$> expr2 <* sym '+' <*> expr1
+   <|> expr1
+
   return $ expr2 <* whitespace
 
 main :: IO ()
 main = do
   x:_ <- getArgs
-  let n = read x
-  print $ 4 + n * 21
-  print $ length $ fullParses $ parser grammar ("asdf" ++ concat (replicate n "* 1213 + (232 + asdf)"))
+  print $ fullParses $ parser grammar x

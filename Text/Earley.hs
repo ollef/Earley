@@ -1,8 +1,8 @@
 module Text.Earley
   ( -- * Context-free grammars
-    Prod, satisfy, Grammar, rule
+    Prod, satisfy, (<?>), Grammar, rule
   , -- * Derived operators
-    symbol, word, many, some
+    symbol, namedSymbol, word
   , -- * Parsing
     Result(..), parser, allParses, fullParses
   )

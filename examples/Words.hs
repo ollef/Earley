@@ -1,32 +1,26 @@
 {-# LANGUAGE RecursiveDo #-}
 import Data.Char
+import Control.Applicative
 import System.Environment
 
-import Text.Earley as E
+import Text.Earley
 
-grammar :: Grammar r (Prod r Char [String])
+grammar :: Grammar r String (Prod r String Char [String])
 grammar = mdo
-  whitespace <- rule
-    [() <$ whitespace1
-    ,pure ()
-    ]
+  whitespace  <- rule $ () <$ many (satisfy isSpace)
+  whitespace1 <- rule $ () <$ satisfy isSpace <* whitespace <?> "whitespace"
 
-  whitespace1 <- rule
-    [() <$ satisfy isSpace <* whitespace]
-
-  ident <- rule
-    [(:) <$> satisfy isAlpha    <*> identCont]
-
-  identCont <- E.many $ satisfy isAlphaNum
+  ident <- rule 
+    $ (:) <$> satisfy isAlpha <*> many (satisfy isAlphaNum)
+   <?> "identifier"
 
   expr <- rule
-    [(:)   <$> ident <* whitespace1 <*> expr
-    ,(:[]) <$> ident <* whitespace
-    ]
+    $  (:)   <$> ident <* whitespace1 <*> expr
+   <|> (:[]) <$> ident <* whitespace
 
   return expr
 
 main :: IO ()
 main = do
   x:_ <- getArgs
-  print $ length $ fullParses $ parser grammar $ concat $ replicate (read x) "aaa "
+  print $ fullParses $ parser grammar x
