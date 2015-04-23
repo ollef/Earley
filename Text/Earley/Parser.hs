@@ -1,7 +1,8 @@
--- | Parsing
+-- | Parsing.
 {-# LANGUAGE BangPatterns, DeriveFunctor, GADTs, Rank2Types #-}
 module Text.Earley.Parser
-  ( Result(..)
+  ( Report(..)
+  , Result(..)
   , parser
   , allParses
   , fullParses
@@ -126,7 +127,7 @@ initialState r = do
 data Report e i = Report
   { position   :: Int -- ^ The final position in the input (0-based) that the
                       -- parser reached.
-  , expected   :: [e] -- ^ The named productions processed at the last
+  , expected   :: [e] -- ^ The named productions processed at the final
                       -- position.
   , unconsumed :: i   -- ^ The part of the input string that was not consumed,
                       -- which may be empty.

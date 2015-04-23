@@ -1,4 +1,4 @@
--- | Derived operators
+-- | Derived operators.
 module Text.Earley.Derived where
 import Control.Applicative hiding (many)
 

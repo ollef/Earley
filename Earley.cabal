@@ -1,8 +1,10 @@
 name:                Earley
 version:             0.6.0
 synopsis:            Parsing all context-free grammars using Earley's algorithm.
-description:         Parsing all context-free grammars using Earley's algorithm.
-                     http://www.github.com/ollef/Earley
+description:         See <http://www.github.com/ollef/Earley> for more
+                     information and
+                     <https://github.com/ollef/Earley/tree/master/examples> for
+                     examples.
 license:             BSD3
 license-file:        LICENSE
 author:              Olle Fredriksson

@@ -1,4 +1,4 @@
--- | Context-free grammars
+-- | Context-free grammars.
 {-# LANGUAGE GADTs, RankNTypes #-}
 module Text.Earley.Grammar
   ( Prod(..)
@@ -13,12 +13,27 @@ import Control.Monad.Fix
 
 infixr 0 <?>
 
--- | A production with terminals of type @t@, return type @a@, names (for
--- reporting what the parser expects when it terminates) of type @e@, and
--- non-terminals of type @r e t x@ for some @x@.
+-- | A production.
 --
--- Most of the functionality of 'Prod's is gotten through its instances,
--- e.g. 'Functor', 'Applicative', and 'Alternative'.
+-- The type parameters are:
+--
+-- @a@: The return type of the production.
+--
+-- @t@: The type of the terminals that the production operates on.
+--
+-- @e@: The type of names, used for example to report expected tokens.
+--
+-- @r@: The type of a non-terminal. This plays a role similar to the @s@ in the
+--      type @ST s a@.  Since the 'parser' function expects the @r@ to be
+--      universally quantified, there is not much to do with this parameter
+--      other than leaving it universally quantified.
+--
+-- As an example, @'Prod' r 'String' 'Char' 'Int'@ is the type of a production that
+-- returns an 'Int', operates on (lists of) characters and reports 'String'
+-- names.
+--
+-- Most of the functionality of 'Prod's is obtained through its instances, e.g.
+-- 'Functor', 'Applicative', and 'Alternative'.
 data Prod r e t a where
   -- Applicative.
   Terminal    :: !(t -> Bool) -> !(Prod r e t (t -> b)) -> Prod r e t b
@@ -76,7 +91,23 @@ instance Alternative (Prod r e t) where
   many p       = Many p $ Pure id
   some p       = (:) <$> p <*> many p
 
--- | The 'Grammar' monad: A representation of a context-free grammars.
+-- | A context-free grammar.
+--
+-- The type parameters are:
+--
+-- @a@: The return type of the grammar (often a 'Prod').
+--
+-- @e@: The type of names, used for example to report expected tokens.
+--
+-- @r@: The type of a non-terminal. This plays a role similar to the @s@ in the
+--      type @ST s a@.  Since the 'parser' function expects the @r@ to be
+--      universally quantified, there is not much to do with this parameter
+--      other than leaving it universally quantified.
+--
+-- Most of the functionality of 'Grammar's is obtained through its instances,
+-- e.g.  'Monad' and 'MonadFix'. Note that GHC has syntactic sugar for
+-- 'MonadFix': use @{-\# LANGUAGE RecursiveDo \#-}@ and @mdo@ instead of
+-- @do@.
 data Grammar r e a where
   RuleBind :: Prod r e t a -> (Prod r e t a -> Grammar r e b) -> Grammar r e b
   FixBind  :: (a -> Grammar r e a) -> (a -> Grammar r e b) -> Grammar r e b
@@ -100,8 +131,6 @@ instance Monad (Grammar r e) where
 instance MonadFix (Grammar r e) where
   mfix f = FixBind f return
 
--- | Create a new non-terminal by listing its production rules. Note that
--- 'Grammar' is an instance of 'MonadFix' which is to be used to construct
--- recursive rules.
+-- | Create a new non-terminal by listing its production rule.
 rule :: Prod r e t a -> Grammar r e (Prod r e t a)
 rule p = RuleBind p return
