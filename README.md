@@ -41,8 +41,8 @@ This (Text.Earley) is a library consisting of two parts:
    ```
 
    Another invocation, which shows the error reporting capabilities (giving the
-   last position that the parser reached at and what it expected at that
-   point), is the following:
+   last position that the parser reached and what it expected at that point),
+   is the following:
 
    ```haskell
       fullParses $ parser expr $ words "a +"
