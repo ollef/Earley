@@ -40,6 +40,9 @@ This (Text.Earley) is a library consisting of two parts:
         )
    ```
 
+   Note that we get a list of all the possible parses (though in this case
+   there is only one).
+
    Another invocation, which shows the error reporting capabilities (giving the
    last position that the parser reached and what it expected at that point),
    is the following:
@@ -53,6 +56,32 @@ This (Text.Earley) is a library consisting of two parts:
                  }
         )
    ```
+How do I use it?
+----------------
+
+As hinted at above, the grammars are written inside `Grammar`, which is a
+`Monad` and `MonadFix`.  For the library to be able to tame the recursion in
+the grammars, we have to use the `rule` function whenever a production is
+recursive.
+
+Whenever you would write e.g.
+```haskell
+...
+p = foo <|> bar <*> p
+...
+```
+in a conventional combinator parser library, you instead write the following:
+```haskell
+grammar = mdo
+  ...
+  p <- rule $ foo <|> bar <*> p
+  ...
+```
+
+Apart from making it possible to do recursion (even left-recursion), `rule`s
+have an additional benefit: they control where work is shared, by the rule that
+any `rule` is only ever expanded once per position in the input string. If a
+`rule` is encountered more than once at a position, the work is shared.
 
 Compared to parser generators and combinator libraries
 ------------------------------------------------------
