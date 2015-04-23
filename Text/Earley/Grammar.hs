@@ -131,6 +131,6 @@ instance Monad (Grammar r e) where
 instance MonadFix (Grammar r e) where
   mfix f = FixBind f return
 
--- | Create a new non-terminal by listing its production rule.
+-- | Create a new non-terminal by giving its production.
 rule :: Prod r e t a -> Grammar r e (Prod r e t a)
 rule p = RuleBind p return
