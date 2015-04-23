@@ -1,7 +1,7 @@
 name:                Earley
 version:             0.6.0
 synopsis:            Parsing all context-free grammars using Earley's algorithm.
-description:         See <http://www.github.com/ollef/Earley> for more
+description:         See <https://www.github.com/ollef/Earley> for more
                      information and
                      <https://github.com/ollef/Earley/tree/master/examples> for
                      examples.
