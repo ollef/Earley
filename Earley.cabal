@@ -1,7 +1,8 @@
 name:                Earley
 version:             0.6.0
--- synopsis:            
--- description:         
+synopsis:            Parsing all context-free grammars using Earley's algorithm.
+description:         Parsing all context-free grammars using Earley's algorithm.
+                     http://www.github.com/ollef/Earley
 license:             BSD3
 license-file:        LICENSE
 author:              Olle Fredriksson
@@ -11,10 +12,14 @@ category:            Parsing
 build-type:          Simple
 cabal-version:       >=1.10
 
+source-repository    head
+  type:     git
+  location: https://github.com/ollef/Earley.git
+
 library
   exposed-modules:     Text.Earley.Derived, Text.Earley.Grammar, Text.Earley.Parser Text.Earley
   -- other-modules:
-  build-depends:       base >=4.8, containers >=0.5, kan-extensions >=4.2, ListLike >=4.1
+  build-depends:       base ==4.8.*, containers >=0.5, kan-extensions >=4.2, ListLike >=4.1
   -- hs-source-dirs:
   default-language:    Haskell2010
   ghc-options:         -Wall -funbox-strict-fields
