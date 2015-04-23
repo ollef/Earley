@@ -1,6 +1,8 @@
 Earley
 ======
 
+[Go to documentation on Hackage](https://hackage.haskell.org/package/Earley)
+
 This (Text.Earley) is a library consisting of two parts:
 
 1. Text.Earley.Grammar:
@@ -56,6 +58,7 @@ This (Text.Earley) is a library consisting of two parts:
                  }
         )
    ```
+
 How do I write grammars?
 ------------------------
 
