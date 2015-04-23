@@ -56,8 +56,8 @@ This (Text.Earley) is a library consisting of two parts:
                  }
         )
    ```
-How do I use it?
-----------------
+How do I write grammars?
+------------------------
 
 As hinted at above, the grammars are written inside `Grammar`, which is a
 `Monad` and `MonadFix`.  For the library to be able to tame the recursion in
