@@ -88,8 +88,9 @@ instance Alternative (Prod r e t) where
   Named p m <|> q         = Named (p <|> q) m
   p         <|> Named q n = Named (p <|> q) n
   p         <|> q         = Plus p q
-  many p       = Many p $ Pure id
-  some p       = (:) <$> p <*> many p
+  many Empty = pure []
+  many p     = Many p $ Pure id
+  some p     = (:) <$> p <*> many p
 
 -- | A context-free grammar.
 --
