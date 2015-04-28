@@ -19,7 +19,7 @@ grammar = mdo
   let token :: Prod r String Char a -> Prod r String Char a
       token p = whitespace *> p
 
-      sym x   = token (symbol x) <?> [x]
+      sym x   = token $ symbol x <?> [x]
 
       ident   = token $ (:) <$> satisfy isAlpha <*> many (satisfy isAlphaNum) <?> "identifier"
       num     = token $ some (satisfy isDigit) <?> "number"
