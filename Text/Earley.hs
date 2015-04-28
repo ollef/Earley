@@ -6,6 +6,8 @@ module Text.Earley
     symbol, namedSymbol, word
   , -- * Parsing
     Report(..), Result(..), parser, allParses, fullParses
+    -- * Recognition
+  , report
   )
   where
 import Text.Earley.Grammar

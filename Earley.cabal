@@ -1,5 +1,5 @@
 name:                Earley
-version:             0.6.0
+version:             0.7.0
 synopsis:            Parsing all context-free grammars using Earley's algorithm.
 description:         See <https://www.github.com/ollef/Earley> for more
                      information and
@@ -21,7 +21,7 @@ source-repository    head
 library
   exposed-modules:     Text.Earley.Derived, Text.Earley.Grammar, Text.Earley.Parser Text.Earley
   -- other-modules:
-  build-depends:       base ==4.8.*, containers >=0.5, kan-extensions >=4.2, ListLike >=4.1
+  build-depends:       base ==4.8.*, containers >=0.5, ListLike >=4.1
   -- hs-source-dirs:
   default-language:    Haskell2010
   ghc-options:         -Wall -funbox-strict-fields
