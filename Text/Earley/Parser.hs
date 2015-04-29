@@ -24,8 +24,8 @@ import Text.Earley.Grammar
 -- | The concrete rule type that the parser uses
 data Rule s r e t a = Rule
   { ruleProd     :: ProdR s r e t a
-  , ruleNullable :: {-# UNPACK #-} !(STRef s (Maybe [a]))
-  , ruleConts    :: {-# UNPACK #-} !(STRef s (STRef s [Cont s r e t a r]))
+  , ruleNullable :: !(STRef s (Maybe [a]))
+  , ruleConts    :: !(STRef s (STRef s [Cont s r e t a r]))
   }
 
 type ProdR s r e t a = Prod (Rule s r) e t a
@@ -80,26 +80,26 @@ type Pos = Int
 
 -- | An Earley state with result type @a@.
 data State s r e t a where
-  State :: {-# UNPACK #-} !Pos
+  State :: !Pos
         -> !(ProdR s r e t f)
-        -> {-# UNPACK #-} !(Args s f b)
-        -> {-# UNPACK #-} !(Conts s r e t b a)
+        -> !(Args s f b)
+        -> !(Conts s r e t b a)
         -> State s r e t a
   Final :: f -> Args s f a -> State s r e t a
 
 -- | A continuation accepting an @a@ and producing a @b@.
 data Cont s r e t a b where
-  Cont      :: {-# UNPACK #-} !Pos
-            -> {-# UNPACK #-} !(Args s a b)
+  Cont      :: !Pos
+            -> !(Args s a b)
             -> !(ProdR s r e t (b -> c))
-            -> {-# UNPACK #-} !(Args s c d)
-            -> {-# UNPACK #-} !(Conts s r e t d e')
+            -> !(Args s c d)
+            -> !(Conts s r e t d e')
             -> Cont s r e t a e'
   FinalCont :: Args s a c -> Cont s r e t a c
 
 data Conts s r e t a c = Conts
-  { conts     :: {-# UNPACK #-} !(STRef s [Cont s r e t a c])
-  , contsArgs :: {-# UNPACK #-} !(STRef s (Maybe (STRef s (ST s [a]))))
+  { conts     :: !(STRef s [Cont s r e t a c])
+  , contsArgs :: !(STRef s (Maybe (STRef s (ST s [a]))))
   }
 
 contraMapCont :: Args s b a -> Cont s r e t a c -> Cont s r e t b c
