@@ -44,9 +44,8 @@ data Prod r e t a where
   Pure        :: a -> Prod r e t a
   -- Monoid/Alternative. We have to special-case 'many' (though it can be done
   -- with rules) to be able to satisfy the Alternative interface.
-  Plus        :: !(Prod r e t a) -> !(Prod r e t a) -> Prod r e t a
+  Alts        :: ![Prod r e t a] -> !(Prod r e t (a -> b)) -> Prod r e t b
   Many        :: !(Prod r e t a) -> !(Prod r e t ([a] -> b)) -> Prod r e t b
-  Empty       :: Prod r e t a
   -- Error reporting.
   Named       :: !(Prod r e t a) -> e -> Prod r e t a
 
@@ -68,10 +67,20 @@ instance Functor (Prod r e t) where
   fmap f (Terminal b p)    = Terminal b $ fmap (f .) p
   fmap f (NonTerminal r p) = NonTerminal r $ fmap (f .) p
   fmap f (Pure x)          = Pure $ f x
-  fmap f (Plus p q)        = Plus (fmap f p) (fmap f q)
+  fmap f (Alts as p)       = Alts as $ fmap (f .) p
   fmap f (Many p q)        = Many p $ fmap (f .) q
-  fmap _ Empty             = Empty
   fmap f (Named p n)       = Named (fmap f p) n
+
+alts :: [Prod r e t a] -> Prod r e t a
+alts as = Alts (as >>= go) $ pure id
+  where
+    go (Alts as' (Pure f)) = fmap f <$> as'
+    go a                   = [a]
+
+alts' :: [Prod r e t a] -> Prod r e t (a -> b) -> Prod r e t b
+alts' [] _        = Alts [] $ pure id
+alts' as (Pure f) = alts $ fmap f <$> as
+alts' as p        = Alts as p
 
 instance Applicative (Prod r e t) where
   pure = Pure
@@ -79,21 +88,18 @@ instance Applicative (Prod r e t) where
   Terminal b p    <*> q = Terminal b $ flip <$> p <*> q
   NonTerminal r p <*> q = NonTerminal r $ flip <$> p <*> q
   Pure f          <*> q = fmap f q
-  Plus a b        <*> q = a <*> q <|> b <*> q
+  Alts as p       <*> q = alts' as $ flip <$> p <*> q
   Many a p        <*> q = Many a $ flip <$> p <*> q
-  Empty           <*> _ = Empty
   Named p n       <*> q = Named (p <*> q) n
 
 instance Alternative (Prod r e t) where
-  empty = Empty
-  Empty     <|> q         = q
-  p         <|> Empty     = p
+  empty = alts []
   Named p m <|> q         = Named (p <|> q) m
   p         <|> Named q n = Named (p <|> q) n
-  p         <|> q         = Plus p q
-  many Empty = pure []
-  many p     = Many p $ Pure id
-  some p     = (:) <$> p <*> many p
+  p         <|> q         = alts [p, q]
+  many (Alts [] _) = pure []
+  many p           = Many p $ Pure id
+  some p           = (:) <$> p <*> many p
 
 -- | A context-free grammar.
 --

@@ -50,11 +50,11 @@ nullableProd (NonTerminal r p) = do
   as <- nullable r
   concat <$> mapM (\a -> nullableProd $ fmap ($ a) p) as
 nullableProd (Pure a)          = return [a]
-nullableProd (Plus a b)        = mappend <$> nullableProd a <*> nullableProd b
+nullableProd (Alts as p)       = (\ass fs -> fs <*> concat ass)
+                              <$> mapM nullableProd as <*> nullableProd p
 nullableProd (Many p q)        = do
   as <- nullableProd $ (:[]) <$> p <|> pure []
   concat <$> mapM (\a -> nullableProd $ fmap ($ a) q) as
-nullableProd Empty             = return mempty
 nullableProd (Named p _)       = nullableProd p
 
 -- | If we have something of type @f@, @'Args' s f a@ is what we need to do to
@@ -63,6 +63,9 @@ type Args s f a = f -> ST s [a]
 
 noArgs :: Args s a a
 noArgs = return . pure
+
+funArg :: (f -> a) -> Args s f a
+funArg f = mapArgs f noArgs
 
 pureArg :: x -> Args s f a -> Args s (x -> f) a
 pureArg x args = args . ($ x)
@@ -148,7 +151,6 @@ initialState :: ProdR s a e t a -> ST s (State s a e t a)
 initialState p = State (-1) p noArgs
               <$> (Conts <$> newSTRef [FinalCont noArgs] <*> newSTRef Nothing)
 
-
 -------------------------------------------------------------------------------
 -- * Parsing
 -------------------------------------------------------------------------------
@@ -175,7 +177,7 @@ data Result s e i a
     -- The 'Int' is the position in the input where these results were
     -- obtained, the @i@ the rest of the input, and the last component is the
     -- continuation.
-  deriving (Functor)
+  deriving Functor
 
 {-# INLINE uncons #-}
 uncons :: ListLike i t => i -> Maybe (t, i)
@@ -250,8 +252,7 @@ parse (st:ss) !results !next !reset names !pos !ts = case st of
           modifySTRef asref (((++) <$> args a) <*>)
           parse ss results next reset names pos ts
         Nothing    -> do -- It hasn't.
-          asref <- newSTRef (return mempty)
-          modifySTRef asref (((++) <$> args a) <*>)
+          asref <- newSTRef $ args a
           writeSTRef argsRef $ Just asref
           ks  <- simplifyCont scont
           let kstates = map (contToState $ join $ readSTRef asref) ks
@@ -263,15 +264,21 @@ parse (st:ss) !results !next !reset names !pos !ts = case st of
                 pos
                 ts
            | otherwise -> parse ss results next reset names pos ts
-
-    Plus p q    -> parse (State spos p args scont : State spos q args scont : ss) results next reset names pos ts
+    Alts as (Pure f) -> do
+      let args' = funArg f `composeArgs` args
+          sts   = [State pos a args' scont | a <- as]
+      parse (sts ++ ss) results next reset names pos ts
+    Alts as p -> do
+      scont' <- Conts <$> newSTRef [Cont spos noArgs p args scont]
+                      <*> newSTRef Nothing
+      let sts = [State pos a noArgs scont' | a <- as]
+      parse (sts ++ ss) results next reset names pos ts
     Many p q    -> do
       scont' <- Conts <$> newSTRef [Cont spos noArgs (Many p ((\f as a -> f (a : as)) <$> q)) args scont]
                       <*> newSTRef Nothing
       let st' = State pos p noArgs scont'
           nst = State spos q (pureArg [] args) scont
       parse (st' : nst : ss) results next reset names pos ts
-    Empty       -> parse ss results next reset names pos ts
     Named pr' n -> parse (State spos pr' args scont : ss) results next reset (n : names) pos ts
 
 {-# INLINE parser #-}
