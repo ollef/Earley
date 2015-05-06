@@ -16,15 +16,15 @@ qcProps :: TestTree
 qcProps = testGroup "QuickCheck Properties"
   [ QC.testProperty "Expr: parse . pretty = id" $
     \e -> [e] === parseExpr (prettyExpr 0 e)
-  , QC.testProperty "Ambigious Expr: parse . pretty ≈ id" $
-    \e -> e `elem` parseAmbigiousExpr (prettyExpr 0 e)
+  , QC.testProperty "Ambiguous Expr: parse . pretty ≈ id" $
+    \e -> e `elem` parseAmbiguousExpr (prettyExpr 0 e)
   ]
 
 parseExpr :: String -> [Expr]
 parseExpr input = fst (fullParses (parser expr (lexExpr input))) -- We need to annotate types for point-free version
 
-parseAmbigiousExpr :: String -> [Expr]
-parseAmbigiousExpr input = fst (fullParses (parser ambigiousExpr (lexExpr input)))
+parseAmbiguousExpr :: String -> [Expr]
+parseAmbiguousExpr input = fst (fullParses (parser ambiguousExpr (lexExpr input)))
 
 data Expr
   = Add Expr Expr
@@ -61,8 +61,8 @@ expr = mdo
     ident (x:_) = isAlpha x
     ident _     = False
 
-ambigiousExpr :: Grammar r String (Prod r String String Expr)
-ambigiousExpr = mdo
+ambiguousExpr :: Grammar r String (Prod r String String Expr)
+ambiguousExpr = mdo
   x1 <- rule $ Add <$> x1 <* namedSymbol "+" <*> x1
             <|> x2
             <?> "sum"
