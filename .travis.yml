@@ -33,7 +33,7 @@ install:
 # build to fail.
 script:
  # -v2 provides useful information for debugging
- - cabal configure -v2 --enable-tests
+ - cabal configure -v2 --enable-tests -fexamples
 
  # this builds all libraries and executables
  # (including tests/benchmarks)
