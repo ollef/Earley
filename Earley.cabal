@@ -14,6 +14,10 @@ category:            Parsing
 build-type:          Simple
 cabal-version:       >=1.10
 
+Flag Examples
+  Description: "Build examples"
+  Default:     False
+
 source-repository    head
   type:     git
   location: https://github.com/ollef/Earley.git
@@ -25,3 +29,65 @@ library
   -- hs-source-dirs:
   default-language:    Haskell2010
   ghc-options:         -Wall -funbox-strict-fields
+
+executable earley-english
+  if !flag(examples)
+    buildable:         False
+  main-is:             English.hs
+  ghc-options:         -Wall
+  hs-source-dirs:      examples
+  default-language:    Haskell2010
+  build-depends:       base, Earley, unordered-containers >=0.2
+
+executable earley-expr
+  if !flag(examples)
+    buildable:         False
+  main-is:             Expr.hs
+  ghc-options:         -Wall
+  hs-source-dirs:      examples
+  default-language:    Haskell2010
+  build-depends:       base, Earley
+
+executable earley-expr2
+  if !flag(examples)
+    buildable:         False
+  main-is:             Expr2.hs
+  ghc-options:         -Wall
+  hs-source-dirs:      examples
+  default-language:    Haskell2010
+  build-depends:       base, Earley
+
+executable earley-mixfix
+  if !flag(examples)
+    buildable:         False
+  main-is:             Mixfix.hs
+  ghc-options:         -Wall
+  hs-source-dirs:      examples
+  default-language:    Haskell2010
+  build-depends:       base, Earley, containers
+
+executable earley-very-ambiguous
+  if !flag(examples)
+    buildable:         False
+  main-is:             VeryAmbiguous.hs
+  ghc-options:         -Wall
+  hs-source-dirs:      examples
+  default-language:    Haskell2010
+  build-depends:       base, Earley
+
+executable earley-words
+  if !flag(examples)
+    buildable:         False
+  main-is:             Words.hs
+  ghc-options:         -Wall
+  hs-source-dirs:      examples
+  default-language:    Haskell2010
+  build-depends:       base, Earley
+
+test-suite tests
+  type:                exitcode-stdio-1.0
+  main-is:             Tests.hs
+  ghc-options:         -Wall
+  hs-source-dirs:      tests
+  default-language:    Haskell2010
+  build-depends:       base, Earley, tasty >=0.10, tasty-quickcheck >=0.8
