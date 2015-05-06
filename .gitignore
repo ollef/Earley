@@ -3,3 +3,6 @@
 *.aux
 *.hp
 *.prof
+dist/
+.cabal-sandbox
+cabal.sandbox.config
