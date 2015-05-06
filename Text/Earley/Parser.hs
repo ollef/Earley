@@ -57,6 +57,9 @@ nullableProd (Many p q)        = do
   concat <$> mapM (\a -> nullableProd $ fmap ($ a) q) as
 nullableProd (Named p _)       = nullableProd p
 
+resetConts :: Rule s r e t a -> ST s ()
+resetConts r = writeSTRef (ruleConts r) =<< newSTRef []
+
 -- | If we have something of type @f@, @'Args' s f a@ is what we need to do to
 -- @f@ to produce @a@s.
 type Args s f a = f -> ST s [a]
@@ -108,6 +111,9 @@ data Conts s r e t a c = Conts
   , contsArgs :: !(STRef s (Maybe (STRef s (ST s [a]))))
   }
 
+newConts :: STRef s [Cont s r e t a c] -> ST s (Conts s r e t a c)
+newConts r = Conts r <$> newSTRef Nothing
+
 contraMapCont :: Args s b a -> Cont s r e t a c -> Cont s r e t b c
 contraMapCont f (Cont pos g p args cs) = Cont pos (composeArgs f g) p args cs
 contraMapCont f (FinalCont args)       = FinalCont (composeArgs f args)
@@ -148,8 +154,7 @@ grammar g = case g of
 
 -- | Given a grammar, construct an initial state.
 initialState :: ProdR s a e t a -> ST s (State s a e t a)
-initialState p = State (-1) p noArgs
-              <$> (Conts <$> newSTRef [FinalCont noArgs] <*> newSTRef Nothing)
+initialState p = State (-1) p noArgs <$> (newConts =<< newSTRef [FinalCont noArgs])
 
 -------------------------------------------------------------------------------
 -- * Parsing
@@ -233,12 +238,11 @@ parse (st:ss) !results !next !reset names !pos !ts = case st of
       nulls <- nullable r
       let nullStates = [State spos p (pureArg a args) scont | a <- nulls]
       if null ks then do -- The rule has not been expanded at this position.
-        asref <- newSTRef Nothing
-        let st' = State pos (ruleProd r) noArgs (Conts rkref asref)
+        st' <- State pos (ruleProd r) noArgs <$> newConts rkref
         parse (st' : nullStates ++ ss)
               results
               next
-              ((writeSTRef (ruleConts r) =<< newSTRef mempty) >> reset)
+              (resetConts r >> reset)
               names
               pos
               ts
@@ -269,13 +273,11 @@ parse (st:ss) !results !next !reset names !pos !ts = case st of
           sts   = [State pos a args' scont | a <- as]
       parse (sts ++ ss) results next reset names pos ts
     Alts as p -> do
-      scont' <- Conts <$> newSTRef [Cont spos noArgs p args scont]
-                      <*> newSTRef Nothing
+      scont' <- newConts =<< newSTRef [Cont spos noArgs p args scont]
       let sts = [State pos a noArgs scont' | a <- as]
       parse (sts ++ ss) results next reset names pos ts
     Many p q    -> do
-      scont' <- Conts <$> newSTRef [Cont spos noArgs (Many p ((\f as a -> f (a : as)) <$> q)) args scont]
-                      <*> newSTRef Nothing
+      scont' <- newConts =<< newSTRef [Cont spos noArgs (Many p ((\f as a -> f (a : as)) <$> q)) args scont]
       let st' = State pos p noArgs scont'
           nst = State spos q (pureArg [] args) scont
       parse (st' : nst : ss) results next reset names pos ts
