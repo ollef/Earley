@@ -21,7 +21,7 @@ source-repository    head
 library
   exposed-modules:     Text.Earley.Derived, Text.Earley.Grammar, Text.Earley.Parser Text.Earley
   -- other-modules:
-  build-depends:       base ==4.8.*, containers >=0.5, ListLike >=4.1
+  build-depends:       base >=4.7 && <4.9, containers >=0.5, ListLike >=4.1
   -- hs-source-dirs:
   default-language:    Haskell2010
   ghc-options:         -Wall -funbox-strict-fields -O2
