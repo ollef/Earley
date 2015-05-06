@@ -1,5 +1,5 @@
 -- | Parsing.
-{-# LANGUAGE BangPatterns, DeriveFunctor, GADTs, Rank2Types #-}
+{-# LANGUAGE CPP, BangPatterns, DeriveFunctor, GADTs, Rank2Types #-}
 module Text.Earley.Parser
   ( Report(..)
   , Result(..)
@@ -17,6 +17,9 @@ import Data.ListLike(ListLike)
 import qualified Data.ListLike as ListLike
 import Data.STRef.Lazy
 import Text.Earley.Grammar
+#if !MIN_VERSION_base(4,8,0)
+import Data.Monoid
+#endif
 
 -------------------------------------------------------------------------------
 -- * Concrete rules and productions
