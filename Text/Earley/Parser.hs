@@ -12,10 +12,10 @@ import Control.Applicative
 import Control.Arrow
 import Control.Monad
 import Control.Monad.Fix
-import Control.Monad.ST.Lazy
+import Control.Monad.ST
 import Data.ListLike(ListLike)
 import qualified Data.ListLike as ListLike
-import Data.STRef.Lazy
+import Data.STRef
 import Text.Earley.Grammar
 #if !MIN_VERSION_base(4,8,0)
 import Data.Monoid
