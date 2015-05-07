@@ -26,7 +26,7 @@ before_install:
 
 install:
  - travis_retry cabal update
- - cabal install --only-dependencies --enable-tests
+ - cabal install --only-dependencies --enable-tests -fexamples
 
 # Here starts the actual work to be performed for the package under
 # test; any command which exits with a non-zero exit code causes the
@@ -36,7 +36,7 @@ script:
  - cabal configure -v2 --enable-tests -fexamples
 
  # this builds all libraries and executables
- # (including tests/benchmarks)
+ # (including tests, but not benchmarks)
  - cabal build
  - cabal test
 
