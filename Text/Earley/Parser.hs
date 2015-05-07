@@ -214,17 +214,17 @@ parse :: ListLike i t
       -> Pos               -- ^ The current position in the input string
       -> i                 -- ^ The input string
       -> ST s (Result s e i a)
-parse [] [] [] !reset names !pos !ts = do
+parse [] [] [] reset names !pos ts = do
   reset
   return $ Ended Report {position = pos, expected = names, unconsumed = ts}
-parse [] [] !next !reset _ !pos !ts = do
+parse [] [] next reset _ !pos ts = do
   reset
   parse next [] [] (return ()) [] (pos + 1) $ safeTail ts
-parse [] !results !next !reset names !pos !ts = do
+parse [] results next reset names !pos ts = do
   reset
   return $ Parsed (concat <$> sequence results) pos ts
          $ parse [] [] next (return ()) names pos ts
-parse (st:ss) !results !next !reset names !pos !ts = case st of
+parse (st:ss) results next reset names !pos ts = case st of
   Final f args -> parse ss (args f : results) next reset names pos ts
   State spos pr args scont -> case pr of
     Terminal f p -> case uncons ts of
