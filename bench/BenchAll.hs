@@ -1,4 +1,4 @@
-{-# LANGUAGE RecursiveDo, FlexibleInstances #-}
+{-# LANGUAGE RecursiveDo, FlexibleContexts #-}
 module Main where
 
 import Control.Applicative
