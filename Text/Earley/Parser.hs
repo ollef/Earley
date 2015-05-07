@@ -280,8 +280,7 @@ parse (st:ss) results next reset names !pos ts = case st of
       c  <- newSTRef =<< newSTRef mempty
       nr <- newSTRef Nothing
       let r   = Rule (pure [] <|> (:) <$> p <*> NonTerminal r (Pure id)) nr c
-          ps  = NonTerminal r q
-          st' = State spos ps args scont
+          st' = State spos (NonTerminal r q) args scont
       parse (st' : ss) results next reset names pos ts
     Named pr' n -> parse (State spos pr' args scont : ss) results next reset (n : names) pos ts
 
