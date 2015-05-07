@@ -277,10 +277,12 @@ parse (st:ss) results next reset names !pos ts = case st of
       let sts = [State pos a noArgs scont' | a <- as]
       parse (sts ++ ss) results next reset names pos ts
     Many p q    -> do
-      scont' <- newConts =<< newSTRef [Cont spos noArgs (Many p ((\f as a -> f (a : as)) <$> q)) args scont]
-      let st' = State pos p noArgs scont'
-          nst = State spos q (pureArg [] args) scont
-      parse (st' : nst : ss) results next reset names pos ts
+      c  <- newSTRef =<< newSTRef mempty
+      nr <- newSTRef Nothing
+      let r   = Rule (pure [] <|> (:) <$> p <*> NonTerminal r (Pure id)) nr c
+          ps  = NonTerminal r q
+          st' = State spos ps args scont
+      parse (st' : ss) results next reset names pos ts
     Named pr' n -> parse (State spos pr' args scont : ss) results next reset (n : names) pos ts
 
 {-# INLINE parser #-}
