@@ -169,7 +169,7 @@ data Report e i = Report
                       -- position.
   , unconsumed :: i   -- ^ The part of the input string that was not consumed,
                       -- which may be empty.
-  } deriving Show
+  } deriving (Eq, Ord, Read, Show)
 
 -- | The result of a parse.
 data Result s e i a
