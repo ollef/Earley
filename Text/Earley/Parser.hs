@@ -184,17 +184,17 @@ data Result s e i a
     -- continuation.
   deriving Functor
 
-{-# INLINE uncons #-}
-uncons :: ListLike i t => i -> Maybe (t, i)
-uncons i
-  | ListLike.null i = Nothing
-  | otherwise       = Just (ListLike.head i, ListLike.tail i)
+{-# INLINE safeHead #-}
+safeHead :: ListLike i t => i -> Maybe t
+safeHead ts
+  | ListLike.null ts = Nothing
+  | otherwise        = Just $ ListLike.head ts
 
 {-# INLINE safeTail #-}
 safeTail :: ListLike i t => i -> i
-safeTail ts'
-  | ListLike.null ts' = ts'
-  | otherwise         = ListLike.tail ts'
+safeTail ts
+  | ListLike.null ts = ts
+  | otherwise        = ListLike.tail ts
 
 {-# SPECIALISE parse :: [State s a e t a]
                      -> [ST s [a]]
@@ -227,10 +227,10 @@ parse [] results next reset names !pos ts = do
 parse (st:ss) results next reset names !pos ts = case st of
   Final f args -> parse ss (args f : results) next reset names pos ts
   State spos pr args scont -> case pr of
-    Terminal f p -> case uncons ts of
-      Just (t, _) | f t ->
+    Terminal f p -> case safeHead ts of
+      Just t | f t ->
         parse ss results (State spos p (pureArg t args) scont : next) reset names pos ts
-      _                 -> parse ss results next reset names pos ts
+      _            -> parse ss results next reset names pos ts
     NonTerminal r p -> do
       rkref <- readSTRef $ ruleConts r
       ks    <- readSTRef rkref

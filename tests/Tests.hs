@@ -1,6 +1,7 @@
 {-# LANGUAGE RecursiveDo, ScopedTypeVariables #-}
 import Test.Tasty
 import Test.Tasty.QuickCheck as QC
+import Test.Tasty.HUnit      as HU
 
 import Data.Char
 import Control.Applicative
@@ -10,7 +11,7 @@ main :: IO ()
 main = defaultMain tests -- -putStrLn . prettyExpr 0 $ Add (Add (Var "a") (Var "b")) (Add (Var "c") (Var "d")) -- defaultMain tests
 
 tests :: TestTree
-tests = testGroup "Tests" [qcProps]
+tests = testGroup "Tests" [qcProps, unitTests]
 
 qcProps :: TestTree
 qcProps = testGroup "QuickCheck Properties"
@@ -18,7 +19,64 @@ qcProps = testGroup "QuickCheck Properties"
     \e -> [e] === parseExpr (prettyExpr 0 e)
   , QC.testProperty "Ambiguous Expr: parse . pretty ≈ id" $
     \e -> e `elem` parseAmbiguousExpr (prettyExpr 0 e)
+  , QC.testProperty "The empty parser doesn't parse anything" $
+    \(input :: String) ->
+      allParses (parser (return empty :: forall r. Grammar r () (Prod r () Char ())) input)
+      == (,) [] Report { position   = 0
+                       , expected   = []
+                       , unconsumed = input
+                       }
+  , QC.testProperty "Many empty parsers parse very little" $
+    \(input :: String) ->
+      allParses (parser (return $ many empty <* pure "blah" :: forall r. Grammar r () (Prod r () Char [()])) input)
+      == (,) [([], 0)] Report { position   = 0
+                              , expected   = []
+                              , unconsumed = input
+                              }
   ]
+
+unitTests :: TestTree
+unitTests = testGroup "Unit Tests"
+  [ HU.testCase "VeryAmbiguous gives the right number of results" $
+      length (fst $ fullParses $ parser veryAmbiguous $ replicate 8 'b') @?= 2871
+  , HU.testCase "VeryAmbiguous gives the correct report" $
+      report (parser veryAmbiguous $ replicate 3 'b') @?=
+      Report {position = 3, expected = "s", unconsumed = ""}
+  , HU.testCase "Inline alternatives work" $
+      let input = "ababbbaaabaa" in
+      allParses (parser inlineAlts input) @?= allParses (parser nonInlineAlts input)
+  , HU.testCase "Some reversed words" $
+      let input = "wordwordstop"
+          l     = length input in
+      allParses (parser someWords input)
+      @?= (,) [(["stop", "drow", "drow"], l)] Report { position   = l
+                                                     , expected   = []
+                                                     , unconsumed = []
+                                                     }
+  ]
+
+inlineAlts :: Grammar r Char (Prod r Char Char String)
+inlineAlts = mdo
+  p <- rule $ pure []
+           <|> (:) <$> (namedSymbol 'a' <|> namedSymbol 'b') <*> p
+  return p
+
+nonInlineAlts :: Grammar r Char (Prod r Char Char String)
+nonInlineAlts = mdo
+  ab <- rule $ namedSymbol 'a' <|> namedSymbol 'b'
+  p  <- rule $ pure [] <|> (:) <$> ab <*> p
+  return p
+
+someWords :: Grammar r () (Prod r () Char [String])
+someWords = return $ flip (:) <$> (map reverse <$> some (word "word")) <*> word "stop"
+
+veryAmbiguous :: Grammar r Char (Prod r Char Char ())
+veryAmbiguous = mdo
+  s <- rule $ () <$ symbol 'b'
+           <|> () <$ s <* s
+           <|> () <$ s <* s <* s
+           <?> 's'
+  return s
 
 parseExpr :: String -> [Expr]
 parseExpr input = fst (fullParses (parser expr (lexExpr input))) -- We need to annotate types for point-free version
