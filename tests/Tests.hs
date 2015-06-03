@@ -53,18 +53,30 @@ unitTests = testGroup "Unit Tests"
                                                      , expected   = []
                                                      , unconsumed = []
                                                      }
-  , HU.testCase "Optional" $
+  , HU.testCase "Optional Nothing" $
       fullParses (parser (return optional_) "b")
       @?= (,) [(Nothing, 'b')] Report {position = 1, expected = "", unconsumed = ""}
-  , HU.testCase "Optional" $
+  , HU.testCase "Optional Just" $
       fullParses (parser (return optional_) "ab")
       @?= (,) [(Just 'a', 'b')] Report {position = 2, expected = "", unconsumed = ""}
-  , HU.testCase "Optional using rules" $
+  , HU.testCase "Optional using rules Nothing" $
       fullParses (parser optionalRule "b")
       @?= (,) [(Nothing, 'b')] Report {position = 1, expected = "", unconsumed = ""}
-  , HU.testCase "Optional using rules" $
+  , HU.testCase "Optional using rules Just" $
       fullParses (parser optionalRule "ab")
       @?= (,) [(Just 'a', 'b')] Report {position = 2, expected = "", unconsumed = ""}
+  , HU.testCase "Optional without continuation Nothing" $
+      fullParses (parser (return $ optional $ namedSymbol 'a') "")
+      @?= (,) [Nothing] Report {position = 0, expected = "a", unconsumed = ""}
+  , HU.testCase "Optional without continuation Just" $
+      fullParses (parser (return $ optional $ namedSymbol 'a') "a")
+      @?= (,) [Just 'a'] Report {position = 1, expected = "", unconsumed = ""}
+  , HU.testCase "Optional using rules without continuation Nothing" $
+      fullParses (parser (rule $ optional $ namedSymbol 'a') "")
+      @?= (,) [Nothing] Report {position = 0, expected = "a", unconsumed = ""}
+  , HU.testCase "Optional using rules without continuation Just" $
+      fullParses (parser (rule $ optional $ namedSymbol 'a') "a")
+      @?= (,) [Just 'a'] Report {position = 1, expected = "", unconsumed = ""}
   ]
 
 optional_ :: Prod r Char Char (Maybe Char, Char)
