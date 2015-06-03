@@ -270,11 +270,12 @@ parse (st:ss) results next reset names !pos ts = case st of
            | otherwise -> parse ss results next reset names pos ts
     Alts as (Pure f) -> do
       let args' = funArg f `composeArgs` args
-          sts   = [State pos a args' scont | a <- as]
+          sts   = [State spos a args' scont | a <- as]
       parse (sts ++ ss) results next reset names pos ts
     Alts as p -> do
       scont' <- newConts =<< newSTRef [Cont spos noArgs p args scont]
-      let sts = [State pos a noArgs scont' | a <- as]
+      -- State is (-1) so that nullable alts are expanded correctly
+      let sts = [State (-1) a noArgs scont' | a <- as]
       parse (sts ++ ss) results next reset names pos ts
     Many p q    -> do
       c  <- newSTRef =<< newSTRef mempty
@@ -302,7 +303,7 @@ allParses p = runST $ p >>= go
   where
     go :: Result s e i a -> ST s ([(a, Int)], Report e i)
     go r = case r of
-      Ended rep         -> return ([], rep)
+      Ended rep          -> return ([], rep)
       Parsed mas pos _ k -> do
         as <- mas
         fmap (first (zip as (repeat pos) ++)) $ go =<< k
