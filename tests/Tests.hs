@@ -53,7 +53,27 @@ unitTests = testGroup "Unit Tests"
                                                      , expected   = []
                                                      , unconsumed = []
                                                      }
+  , HU.testCase "Optional" $
+      fullParses (parser (return optional_) "b")
+      @?= (,) [(Nothing, 'b')] Report {position = 1, expected = "", unconsumed = ""}
+  , HU.testCase "Optional" $
+      fullParses (parser (return optional_) "ab")
+      @?= (,) [(Just 'a', 'b')] Report {position = 2, expected = "", unconsumed = ""}
+  , HU.testCase "Optional using rules" $
+      fullParses (parser optionalRule "b")
+      @?= (,) [(Nothing, 'b')] Report {position = 1, expected = "", unconsumed = ""}
+  , HU.testCase "Optional using rules" $
+      fullParses (parser optionalRule "ab")
+      @?= (,) [(Just 'a', 'b')] Report {position = 2, expected = "", unconsumed = ""}
   ]
+
+optional_ :: Prod r Char Char (Maybe Char, Char)
+optional_ = (,) <$> optional (namedSymbol 'a') <*> namedSymbol 'b'
+
+optionalRule :: Grammar r Char (Prod r Char Char (Maybe Char, Char))
+optionalRule = mdo
+  test <- rule $ (,) <$> optional (namedSymbol 'a') <*> namedSymbol 'b'
+  return test
 
 inlineAlts :: Grammar r Char (Prod r Char Char String)
 inlineAlts = mdo
