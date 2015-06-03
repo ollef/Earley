@@ -61,8 +61,23 @@ isIdent :: String -> Bool
 isIdent (x:_) = isAlpha x
 isIdent _     = False
 
+sepBy1 :: Prod r e t a -> Prod r e t op -> Grammar r e (Prod r e t [a])
+sepBy1 p op = mdo
+  ops <- rule $ pure [] <|> (:) <$ op <*> p <*> ops
+  rule $ (:) <$> p <*> ops
+
+expr' :: Grammar r String (Prod r String Token Expr)
+expr' = mdo
+  let var = Var <$> satisfy isIdent <|> symbol "(" *> mul <* symbol ")"
+  mul <- fmap (foldl1 Mul) <$> add `sepBy1` symbol "*"
+  add <- fmap (foldl1 Add) <$> var `sepBy1` symbol "+"
+  return mul
+
 parseEarley :: [Token] -> Maybe Expr
 parseEarley input = listToMaybe (fst (fullParses (parser expr input)))
+
+parseEarley' :: [Token] -> Maybe Expr
+parseEarley' input = listToMaybe (fst (fullParses (parser expr' input)))
 
 -- Parsec parsec
 
@@ -94,11 +109,14 @@ inputBench (name, input) = bench name $ nf id input
 earleyBench :: (String, [Token]) -> Benchmark
 earleyBench (name, input) = bench name $ nf parseEarley input
 
+earley'Bench :: (String, [Token]) -> Benchmark
+earley'Bench (name, input) = bench name $ nf parseEarley' input
+
 parsecBench :: (String, [Token]) -> Benchmark
 parsecBench (name, input) = bench name $ nf parseParsec input
 
 benchSizes :: [Int]
-benchSizes = [51, 101, 151, 201]
+benchSizes = [100, 200] -- [51, 101, 151, 201]
 
 linearInputs :: [(String, [Token])]
 linearInputs = map linearInput benchSizes
@@ -111,11 +129,13 @@ main = do
   evaluate (rnf linearInputs)
   evaluate (rnf treeInputs)
   defaultMain
-    [ bgroup "inputs" $ map inputBench linearInputs 
-    , bgroup "earley" $ map earleyBench linearInputs
+    [ -- bgroup "inputs" $ map inputBench linearInputs 
+      bgroup "earley" $ map earleyBench linearInputs
+    , bgroup "earley'" $ map earley'Bench linearInputs
     , bgroup "parsec" $ map parsecBench linearInputs
-    , bgroup "inputsTree" $ map inputBench treeInputs
+    -- , bgroup "inputsTree" $ map inputBench treeInputs
     , bgroup "earleyTree" $ map earleyBench treeInputs
+    , bgroup "earley'Tree" $ map earley'Bench treeInputs
     , bgroup "parsecTree" $ map parsecBench treeInputs
     ]
 
