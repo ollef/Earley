@@ -1,9 +1,7 @@
-Earley
+Earley [![Build Status](https://travis-ci.org/ollef/Earley.svg?branch=master)](https://travis-ci.org/ollef/Earley) [![Hackage](https://img.shields.io/hackage/v/Earley.svg)](https://hackage.haskell.org/package/Earley)
 ======
 
-[![Build Status](https://travis-ci.org/ollef/Earley.svg?branch=master)](https://travis-ci.org/ollef/Earley)
-
-[Go to documentation on Hackage](https://hackage.haskell.org/package/Earley)
+[Go to the API documentation on Hackage.](https://hackage.haskell.org/package/Earley)
 
 This (Text.Earley) is a library consisting of two parts:
 
