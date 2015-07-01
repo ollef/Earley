@@ -1,5 +1,5 @@
 name:                Earley
-version:             0.8.1
+version:             0.8.2
 synopsis:            Parsing all context-free grammars using Earley's algorithm.
 description:         See <https://www.github.com/ollef/Earley> for more
                      information and
@@ -23,9 +23,9 @@ source-repository    head
   location: https://github.com/ollef/Earley.git
 
 library
-  exposed-modules:     Text.Earley.Derived, Text.Earley.Grammar, Text.Earley.Parser Text.Earley
+  exposed-modules:     Text.Earley.Derived, Text.Earley.Grammar, Text.Earley.Mixfix, Text.Earley.Parser Text.Earley
   -- other-modules:
-  build-depends:       base >=4.7 && <4.9, containers >=0.5, ListLike >=4.1
+  build-depends:       base >=4.7 && <4.9, ListLike >=4.1
   -- hs-source-dirs:
   default-language:    Haskell2010
   ghc-options:         -Wall -funbox-strict-fields
@@ -64,7 +64,7 @@ executable earley-mixfix
   ghc-options:         -Wall
   hs-source-dirs:      examples
   default-language:    Haskell2010
-  build-depends:       base, Earley, containers
+  build-depends:       base, Earley, unordered-containers
 
 executable earley-very-ambiguous
   if !flag(examples)
