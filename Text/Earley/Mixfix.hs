@@ -51,7 +51,7 @@ mixfixExpression table atom app = mdo
         mixfixIdent same (ps, a) = app' <$> go ps
           where
             go ps' = case ps' of
-              [] -> pure mempty
+              [] -> pure []
               [Just p] -> pure . Right <$> p
               Nothing:rest -> cons (Left <$> if a == RightAssoc then next
                                                                 else same)
