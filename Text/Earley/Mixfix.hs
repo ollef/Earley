@@ -1,6 +1,9 @@
 {-# LANGUAGE RecursiveDo #-}
 module Text.Earley.Mixfix where
 
+#if !MIN_VERSION_base(4,8,0)
+import Control.Applicative
+#endif
 import Data.Either
 import Data.Foldable(asum, foldrM)
 import Text.Earley
