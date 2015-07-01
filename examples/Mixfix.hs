@@ -1,7 +1,10 @@
-{-# LANGUAGE RecursiveDo #-}
+{-# LANGUAGE CPP, RecursiveDo #-}
 import Control.Applicative
 import Control.Arrow(first)
 import Data.Maybe
+#if !MIN_VERSION_base(4,8,0)
+import Data.Monoid
+#endif
 import System.Environment
 import Text.Earley
 import Text.Earley.Mixfix
