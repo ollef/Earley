@@ -18,7 +18,7 @@ data Associativity
 -- representing the positions of its arguments.
 --
 -- Example (commonly written "if_then_else_"):
--- @['Just' "if", Nothing, 'Just' "then", Nothing, 'Just' "else", Nothing] :: 'Holey' 'String'@
+-- @['Just' "if", 'Nothing', 'Just' "then", 'Nothing', 'Just' "else", 'Nothing'] :: 'Holey' 'String'@
 type Holey a = [Maybe a]
 
 -- | Create a grammar for parsing mixfix expressions.
