@@ -1,4 +1,4 @@
-{-# LANGUAGE RecursiveDo #-}
+{-# LANGUAGE CPP, RecursiveDo #-}
 module Text.Earley.Mixfix where
 
 #if !MIN_VERSION_base(4,8,0)
