@@ -66,6 +66,9 @@ funArg f = mapArgs f noArgs
 pureArg :: x -> Args s f a -> Args s (x -> f) a
 pureArg x args = args . ($ x)
 
+pureArgs :: [x] -> Args s f a -> Args s (x -> f) a
+pureArgs xs args f = concat <$> mapM (args . f) xs
+
 impureArgs :: ST s [x] -> Args s f a -> Args s (x -> f) a
 impureArgs mxs args f = fmap concat . mapM (args . f) =<< mxs
 
@@ -229,7 +232,8 @@ parse (st:ss) results next reset names !pos ts = case st of
       ks    <- readSTRef rkref
       writeSTRef rkref (Cont spos noArgs p args scont : ks)
       nulls <- nullable r
-      let nullStates = [State spos p (pureArg a args) scont | a <- nulls]
+      let nullStates | null nulls = mempty
+                     | otherwise  = pure $ State spos p (pureArgs nulls args) scont
       if null ks then do -- The rule has not been expanded at this position.
         st' <- State pos (ruleProd r) noArgs <$> newConts rkref
         parse (st' : nullStates ++ ss)
