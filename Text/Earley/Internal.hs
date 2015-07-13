@@ -111,13 +111,13 @@ newConts :: STRef s [Cont s r e t a c] -> ST s (Conts s r e t a c)
 newConts r = Conts r <$> newSTRef Nothing
 
 contraMapCont :: Args s b a -> Cont s r e t a c -> Cont s r e t b c
-contraMapCont f (Cont pos g p args cs) = Cont pos (composeArgs f g) p args cs
+contraMapCont f (Cont cpos g p args cs) = Cont cpos (composeArgs f g) p args cs
 contraMapCont f (FinalCont args)       = FinalCont (composeArgs f args)
 
 contToState :: ST s [a] -> Cont s r e t a c -> State s r e t c
-contToState r (Cont pos g p args cs) = 
+contToState r (Cont cpos g p args cs) = 
   let mb = fmap concat . mapM g =<< r in
-  State pos p (impureArgs mb args) cs
+  State cpos p (impureArgs mb args) cs
 contToState r (FinalCont args)       = Final id (impureArgs r args)
 
 -- | Strings of non-ambiguous continuations can be optimised by removing
@@ -192,41 +192,61 @@ safeTail ts
   | ListLike.null ts = ts
   | otherwise        = ListLike.tail ts
 
+data ParseEnv s e i t a = ParseEnv
+  { results :: ![ST s [a]]
+    -- ^ Results ready to be reported (when this position has been processed)
+  , next  :: ![State s a e t a]
+    -- ^ States to process at the next position
+  , reset :: !(ST s ())
+    -- ^ Computation that resets the continuation refs of productions
+  , names :: ![e]
+    -- ^ Named productions encountered at this position
+  , pos   :: !Pos
+    -- ^ The current position in the input string
+  , input :: !i
+    -- ^ The input string
+  }
+
+{-# INLINE emptyParseEnv #-}
+emptyParseEnv :: i -> ParseEnv s e i t a
+emptyParseEnv i = ParseEnv
+  { results = mempty
+  , next    = mempty
+  , reset   = return ()
+  , names   = mempty
+  , pos     = 0
+  , input   = i
+  }
+
 {-# SPECIALISE parse :: [State s a e t a]
-                     -> [ST s [a]]
-                     -> [State s a e t a]
-                     -> ST s ()
-                     -> [e]
-                     -> Pos
-                     -> [t]
+                     -> ParseEnv s e [t] t a
                      -> ST s (Result s e [t] a) #-}
 -- | The internal parsing routine
 parse :: ListLike i t
       => [State s a e t a] -- ^ States to process at this position
-      -> [ST s [a]]        -- ^ Results ready to be reported (when this position has been processed)
-      -> [State s a e t a] -- ^ States to process at the next position
-      -> ST s ()           -- ^ Computation that resets the continuation refs of productions
-      -> [e]               -- ^ Named productions encountered at this position
-      -> Pos               -- ^ The current position in the input string
-      -> i                 -- ^ The input string
+      -> ParseEnv s e i t a
       -> ST s (Result s e i a)
-parse [] [] [] reset names !pos ts = do
-  reset
-  return $ Ended Report {position = pos, expected = names, unconsumed = ts}
-parse [] [] next reset _ !pos ts = do
-  reset
-  parse next [] [] (return ()) [] (pos + 1) $ safeTail ts
-parse [] results next reset names !pos ts = do
-  reset
-  return $ Parsed (concat <$> sequence results) pos ts
-         $ parse [] [] next (return ()) names pos ts
-parse (st:ss) results next reset names !pos ts = case st of
-  Final f args -> parse ss (args f : results) next reset names pos ts
+parse [] env@ParseEnv {results = [], next = []} = do
+  reset env
+  return $ Ended Report
+    { position   = pos env
+    , expected   = names env
+    , unconsumed = input env
+    }
+parse [] env@ParseEnv {results = []} = do
+  reset env
+  parse (next env) (emptyParseEnv $ safeTail $ input env) {pos = pos env + 1}
+parse [] env = do
+  reset env
+  return $ Parsed (concat <$> sequence (results env)) (pos env) (input env)
+         $ parse [] env {results = [], reset = return ()}
+parse (st:ss) env = case st of
+  Final f args -> parse ss env {results = args f : results env}
   State spos pr args scont -> case pr of
-    Terminal f p -> case safeHead ts of
-      Just t | f t ->
-        parse ss results (State spos p (pureArg t args) scont : next) reset names pos ts
-      _            -> parse ss results next reset names pos ts
+    Terminal f p -> case safeHead $ input env of
+      Just t | f t -> parse ss env {next = State spos p (pureArg t args) scont
+                                         : next env}
+      _            -> parse ss env
     NonTerminal r p -> do
       rkref <- readSTRef $ ruleConts r
       ks    <- readSTRef rkref
@@ -235,52 +255,43 @@ parse (st:ss) results next reset names !pos ts = case st of
       let nullStates | null nulls = mempty
                      | otherwise  = pure $ State spos p (pureArgs nulls args) scont
       if null ks then do -- The rule has not been expanded at this position.
-        st' <- State pos (ruleProd r) noArgs <$> newConts rkref
+        st' <- State (pos env) (ruleProd r) noArgs <$> newConts rkref
         parse (st' : nullStates ++ ss)
-              results
-              next
-              (resetConts r >> reset)
-              names
-              pos
-              ts
+              env {reset = resetConts r >> reset env}
       else -- The rule has already been expanded at this position.
-        parse (nullStates ++ ss) results next reset names pos ts
-    Pure a | spos /= pos -> do
+        parse (nullStates ++ ss) env
+    Pure a | spos /= pos env -> do
       let argsRef = contsArgs scont
       masref  <- readSTRef argsRef
       case masref of
         Just asref -> do -- The continuation has already been followed at this position.
           modifySTRef asref (((++) <$> args a) <*>)
-          parse ss results next reset names pos ts
+          parse ss env
         Nothing    -> do -- It hasn't.
           asref <- newSTRef $ args a
           writeSTRef argsRef $ Just asref
           ks  <- simplifyCont scont
           let kstates = map (contToState $ join $ readSTRef asref) ks
           parse (kstates ++ ss)
-                results
-                next
-                (writeSTRef argsRef Nothing >> reset)
-                names
-                pos
-                ts
-           | otherwise -> parse ss results next reset names pos ts
+                env {reset = writeSTRef argsRef Nothing >> reset env}
+           | otherwise -> parse ss env
     Alts as (Pure f) -> do
       let args' = funArg f `composeArgs` args
           sts   = [State spos a args' scont | a <- as]
-      parse (sts ++ ss) results next reset names pos ts
+      parse (sts ++ ss) env
     Alts as p -> do
       scont' <- newConts =<< newSTRef [Cont spos noArgs p args scont]
       -- State is (-1) so that nullable alts are expanded correctly
       let sts = [State (-1) a noArgs scont' | a <- as]
-      parse (sts ++ ss) results next reset names pos ts
+      parse (sts ++ ss) env
     Many p q    -> do
       c  <- newSTRef =<< newSTRef mempty
       nr <- newSTRef Nothing
       let r   = Rule (pure [] <|> (:) <$> p <*> NonTerminal r (Pure id)) nr c
           st' = State spos (NonTerminal r q) args scont
-      parse (st' : ss) results next reset names pos ts
-    Named pr' n -> parse (State spos pr' args scont : ss) results next reset (n : names) pos ts
+      parse (st' : ss) env
+    Named pr' n -> parse (State spos pr' args scont : ss)
+                         env {names = n : names env}
 
 {-# INLINE parser #-}
 -- | Create a parser from the given grammar.
@@ -290,7 +301,7 @@ parser :: ListLike i t
        -> ST s (Result s e i a)
 parser g xs = do
   s <- initialState =<< grammar g
-  parse [s] [] [] (return ()) [] 0 xs
+  parse [s] $ emptyParseEnv xs
 
 -- | Return all parses from the result of a given parser. The result may
 -- contain partial parses. The 'Int's are the position at which a result was
@@ -301,9 +312,9 @@ allParses p = runST $ p >>= go
     go :: Result s e i a -> ST s ([(a, Int)], Report e i)
     go r = case r of
       Ended rep          -> return ([], rep)
-      Parsed mas pos _ k -> do
+      Parsed mas cpos _ k -> do
         as <- mas
-        fmap (first (zip as (repeat pos) ++)) $ go =<< k
+        fmap (first (zip as (repeat cpos) ++)) $ go =<< k
 
 {-# INLINE fullParses #-}
 -- | Return all parses that reached the end of the input from the result of a
