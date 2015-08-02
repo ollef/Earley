@@ -9,7 +9,7 @@ This (Text.Earley) is a library consisting of two main parts:
    An embedded context-free grammar (CFG) domain-specific language (DSL) with
    semantic action specification in applicative style.
 
-   An example of a typical expression grammar working on an input tokenized
+   An example of a typical expression grammar working on an input tokenised
    into strings is the following:
 
    ```haskell
