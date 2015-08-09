@@ -95,6 +95,50 @@ unitTests = testGroup "Unit Tests"
       let x = Ident [Just "x"] in
       fullParses (parser mixfixGrammar $ words "[ x ]")
       @?= (,) [App closed [x]] Report {position = 3, expected = [], unconsumed = []}
+
+  , let x = words "+ + 5 6 7" in
+    HU.testCase "Mixfix issue #11 1" $
+    fullParses (parser (issue11 LeftAssoc) x)
+    @?= (,) [] Report {position = 1, expected = [], unconsumed = drop 1 x}
+  , let x = words "+ 5 + 6 7" in
+    HU.testCase "Mixfix issue #11 2" $
+    fullParses (parser (issue11 LeftAssoc) x)
+    @?= (,) [] Report {position = 2, expected = [], unconsumed = drop 2 x}
+  , let x = words "+ 5 6" in
+    HU.testCase "Mixfix issue #11 3" $
+    fullParses (parser (issue11 LeftAssoc) x)
+    @?= (,) [Plus11 (Var11 "5") (Var11 "6")]
+            Report {position = 3, expected = [], unconsumed = []}
+  , let x = words "+ + 5 6 7" in
+    HU.testCase "Mixfix issue #11 4" $
+    fullParses (parser (issue11 RightAssoc) x)
+    @?= (,) [Plus11 (Plus11 (Var11 "5") (Var11 "6")) (Var11 "7")]
+            Report {position = 5, expected = [], unconsumed = []}
+  , let x = words "+ 5 + 6 7" in
+    HU.testCase "Mixfix issue #11 5" $
+    fullParses (parser (issue11 RightAssoc) x)
+    @?= (,) [Plus11 (Var11 "5") (Plus11 (Var11 "6") (Var11 "7"))]
+            Report {position = 5, expected = [], unconsumed = []}
+  , let x = words "+ 5 6" in
+    HU.testCase "Mixfix issue #11 6" $
+    fullParses (parser (issue11 RightAssoc) x)
+    @?= (,) [Plus11 (Var11 "5") (Var11 "6")]
+            Report {position = 3, expected = [], unconsumed = []}
+  , let x = words "+ + 5 6 7" in
+    HU.testCase "Mixfix issue #11 7" $
+    fullParses (parser (issue11 NonAssoc) x)
+    @?= (,) [Plus11 (Plus11 (Var11 "5") (Var11 "6")) (Var11 "7")]
+            Report {position = 5, expected = [], unconsumed = []}
+  , let x = words "+ 5 + 6 7" in
+    HU.testCase "Mixfix issue #11 8" $
+    fullParses (parser (issue11 NonAssoc) x)
+    @?= (,) [Plus11 (Var11 "5") (Plus11 (Var11 "6") (Var11 "7"))]
+            Report {position = 5, expected = [], unconsumed = []}
+  , let x = words "+ 5 6" in
+    HU.testCase "Mixfix issue #11 9" $
+    fullParses (parser (issue11 NonAssoc) x)
+    @?= (,) [Plus11 (Var11 "5") (Var11 "6")]
+            Report {position = 3, expected = [], unconsumed = []}
   ]
 
 optional_ :: Prod r Char Char (Maybe Char, Char)
@@ -230,3 +274,21 @@ infix1 = [Nothing, Just "infix1", Nothing]
 infix2 = [Nothing, Just "infix2", Nothing]
 closed = [Just "[", Nothing, Just "]"]
 
+-- Adapted from issue #11
+data Mixfix11
+  = Var11 String
+  | Plus11 Mixfix11 Mixfix11
+  deriving (Eq, Ord, Show)
+
+issue11 :: Associativity -> Grammar r String (Prod r String String Mixfix11)
+issue11 a = mdo
+    atomicExpr <- rule $ Var11 <$> satisfy (/= "+")
+
+    expr <- mixfixExpression
+               [[([Just (symbol "+"), Nothing, Nothing], a)]]
+               atomicExpr
+               (\x y -> case (x,y) of
+                  ([Just "+", Nothing, Nothing], [e1,e2]) -> Plus11 e1 e2
+                  _ -> undefined)
+
+    return expr
