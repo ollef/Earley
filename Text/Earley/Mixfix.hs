@@ -10,6 +10,7 @@ import Control.Applicative
 #endif
 import Data.Either
 import Data.Foldable(asum, foldrM)
+import Data.Traversable(sequenceA)
 import Text.Earley
 
 replicateA :: Applicative f => Int -> f a -> f [a]
