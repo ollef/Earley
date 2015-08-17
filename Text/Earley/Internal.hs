@@ -1,5 +1,6 @@
 {-# LANGUAGE CPP, BangPatterns, DeriveFunctor, GADTs, Rank2Types #-}
--- | This module exposes the internals of the package: its API may change independently of the PVP-compliant version number.
+-- | This module exposes the internals of the package: its API may change
+-- independently of the PVP-compliant version number.
 module Text.Earley.Internal where
 import Control.Applicative
 import Control.Arrow
@@ -26,57 +27,47 @@ data Rule s r e t a = Rule
 
 type ProdR s r e t a = Prod (Rule s r) e t a
 
-nullable :: Rule s r e t a -> ST s [a]
-nullable r = do
+nullable :: Rule s r e t a -> Results s a
+nullable r = Results $ do
   mn <- readSTRef $ ruleNullable r
   case mn of
     Just xs -> return xs
     Nothing -> do
       writeSTRef (ruleNullable r) $ Just mempty
-      res <- nullableProd $ ruleProd r
+      res <- unResults $ nullableProd $ ruleProd r
       writeSTRef (ruleNullable r) $ Just res
       return res
 
-nullableProd :: ProdR s r e t a -> ST s [a]
-nullableProd (Terminal _ _)    = return mempty
-nullableProd (NonTerminal r p) = do
-  as <- nullable r
-  concat <$> mapM (\a -> nullableProd $ fmap ($ a) p) as
-nullableProd (Pure a)          = return [a]
-nullableProd (Alts as p)       = (\ass fs -> fs <*> concat ass)
-                              <$> mapM nullableProd as <*> nullableProd p
-nullableProd (Many p q)        = do
-  as <- nullableProd $ (:[]) <$> p <|> pure []
-  concat <$> mapM (\a -> nullableProd $ fmap ($ a) q) as
+nullableProd :: ProdR s r e t a -> Results s a
+nullableProd (Terminal _ _)    = mempty
+nullableProd (NonTerminal r p) = nullable r <**> nullableProd p
+nullableProd (Pure a)          = pure a
+nullableProd (Alts as p)       = mconcat (map nullableProd as) <**> nullableProd p
+nullableProd (Many p q)        = nullableProd $ (pure <$> p <|> pure []) <**> q
 nullableProd (Named p _)       = nullableProd p
 
 resetConts :: Rule s r e t a -> ST s ()
 resetConts r = writeSTRef (ruleConts r) =<< newSTRef []
 
--- | If we have something of type @f@, @'Args' s f a@ is what we need to do to
--- @f@ to produce @a@s.
-type Args s f a = f -> ST s [a]
+-------------------------------------------------------------------------------
+-- * Delayed results
+-------------------------------------------------------------------------------
+newtype Results s a = Results { unResults :: ST s [a] }
+  deriving Functor
 
-noArgs :: Args s a a
-noArgs = return . pure
+instance Applicative (Results s) where
+  pure  = return
+  (<*>) = ap
 
-funArg :: (f -> a) -> Args s f a
-funArg f = mapArgs f noArgs
+instance Monad (Results s) where
+  return = Results . pure . pure
+  Results stxs >>= f = Results $ do
+    xs <- stxs
+    concat <$> mapM (unResults . f) xs
 
-pureArg :: x -> Args s f a -> Args s (x -> f) a
-pureArg x args = args . ($ x)
-
-pureArgs :: [x] -> Args s f a -> Args s (x -> f) a
-pureArgs xs args f = concat <$> mapM (args . f) xs
-
-impureArgs :: ST s [x] -> Args s f a -> Args s (x -> f) a
-impureArgs mxs args f = fmap concat . mapM (args . f) =<< mxs
-
-mapArgs :: (a -> b) -> Args s f a -> Args s f b
-mapArgs = fmap . fmap . fmap
-
-composeArgs :: Args s a b -> Args s b c -> Args s a c
-composeArgs ab bc a = fmap concat . mapM bc =<< ab a
+instance Monoid (Results s a) where
+  mempty = Results $ pure []
+  mappend (Results sxs) (Results sys) = Results $ (++) <$> sxs <*> sys
 
 -------------------------------------------------------------------------------
 -- * States and continuations
@@ -86,39 +77,37 @@ type Pos = Int
 -- | An Earley state with result type @a@.
 data State s r e t a where
   State :: !Pos
-        -> !(ProdR s r e t f)
-        -> !(Args s f b)
-        -> !(Conts s r e t b a)
-        -> State s r e t a
-  Final :: f -> Args s f a -> State s r e t a
+        -> !(ProdR s r e t a)
+        -> !(a -> Results s b)
+        -> !(Conts s r e t b c)
+        -> State s r e t c
+  Final :: Results s a -> State s r e t a
 
 -- | A continuation accepting an @a@ and producing a @b@.
 data Cont s r e t a b where
   Cont      :: !Pos
-            -> !(Args s a b)
+            -> !(a -> Results s b)
             -> !(ProdR s r e t (b -> c))
-            -> !(Args s c d)
+            -> !(c -> Results s d)
             -> !(Conts s r e t d e')
             -> Cont s r e t a e'
-  FinalCont :: Args s a c -> Cont s r e t a c
+  FinalCont :: (a -> Results s c) -> Cont s r e t a c
 
 data Conts s r e t a c = Conts
   { conts     :: !(STRef s [Cont s r e t a c])
-  , contsArgs :: !(STRef s (Maybe (STRef s (ST s [a]))))
+  , contsArgs :: !(STRef s (Maybe (STRef s (Results s a))))
   }
 
 newConts :: STRef s [Cont s r e t a c] -> ST s (Conts s r e t a c)
 newConts r = Conts r <$> newSTRef Nothing
 
-contraMapCont :: Args s b a -> Cont s r e t a c -> Cont s r e t b c
-contraMapCont f (Cont cpos g p args cs) = Cont cpos (composeArgs f g) p args cs
-contraMapCont f (FinalCont args)       = FinalCont (composeArgs f args)
+contraMapCont :: (b -> Results s a) -> Cont s r e t a c -> Cont s r e t b c
+contraMapCont f (Cont cpos g p args cs) = Cont cpos (f >=> g) p args cs
+contraMapCont f (FinalCont args)        = FinalCont (f >=> args)
 
-contToState :: ST s [a] -> Cont s r e t a c -> State s r e t c
-contToState r (Cont cpos g p args cs) = 
-  let mb = fmap concat . mapM g =<< r in
-  State cpos p (impureArgs mb args) cs
-contToState r (FinalCont args)       = Final id (impureArgs r args)
+contToState :: Results s a -> Cont s r e t a c -> State s r e t c
+contToState r (Cont cpos g p args cs) = State cpos p (\f -> fmap f (r >>= g) >>= args) cs
+contToState r (FinalCont args)        = Final $ r >>= args
 
 -- | Strings of non-ambiguous continuations can be optimised by removing
 --   indirections.
@@ -127,7 +116,7 @@ simplifyCont Conts {conts = cont} = readSTRef cont >>= go False
   where
     go !_ [Cont _ g (Pure f) args cont'] = do
       ks' <- simplifyCont cont'
-      go True $ map (contraMapCont $ mapArgs f g `composeArgs` args) ks'
+      go True $ map (contraMapCont $ \b -> fmap f (g b) >>= args) ks'
     go True ks = do
       writeSTRef cont ks
       return ks
@@ -150,7 +139,7 @@ grammar g = case g of
 
 -- | Given a grammar, construct an initial state.
 initialState :: ProdR s a e t a -> ST s (State s a e t a)
-initialState p = State (-1) p noArgs <$> (newConts =<< newSTRef [FinalCont noArgs])
+initialState p = State (-1) p pure <$> (newConts =<< newSTRef [FinalCont pure])
 
 -------------------------------------------------------------------------------
 -- * Parsing
@@ -241,21 +230,21 @@ parse [] env = do
   return $ Parsed (concat <$> sequence (results env)) (pos env) (input env)
          $ parse [] env {results = [], reset = return ()}
 parse (st:ss) env = case st of
-  Final f args -> parse ss env {results = args f : results env}
+  Final res -> parse ss env {results = unResults res : results env}
   State spos pr args scont -> case pr of
     Terminal f p -> case safeHead $ input env of
-      Just t | f t -> parse ss env {next = State spos p (pureArg t args) scont
+      Just t | f t -> parse ss env {next = State spos p (args . ($ t)) scont
                                          : next env}
       _            -> parse ss env
     NonTerminal r p -> do
       rkref <- readSTRef $ ruleConts r
       ks    <- readSTRef rkref
-      writeSTRef rkref (Cont spos noArgs p args scont : ks)
-      nulls <- nullable r
+      writeSTRef rkref (Cont spos pure p args scont : ks)
+      nulls <- unResults $ nullable r
       let nullStates | null nulls = mempty
-                     | otherwise  = pure $ State spos p (pureArgs nulls args) scont
+                     | otherwise  = pure $ State spos p (\g -> mconcat $ map (args . g) nulls) scont
       if null ks then do -- The rule has not been expanded at this position.
-        st' <- State (pos env) (ruleProd r) noArgs <$> newConts rkref
+        st' <- State (pos env) (ruleProd r) pure <$> newConts rkref
         parse (st' : nullStates ++ ss)
               env {reset = resetConts r >> reset env}
       else -- The rule has already been expanded at this position.
@@ -265,24 +254,24 @@ parse (st:ss) env = case st of
       masref  <- readSTRef argsRef
       case masref of
         Just asref -> do -- The continuation has already been followed at this position.
-          modifySTRef asref (((++) <$> args a) <*>)
+          modifySTRef asref $ mappend $ args a
           parse ss env
         Nothing    -> do -- It hasn't.
           asref <- newSTRef $ args a
           writeSTRef argsRef $ Just asref
           ks  <- simplifyCont scont
-          let kstates = map (contToState $ join $ readSTRef asref) ks
+          let kstates = map (contToState $ Results $ join $ unResults <$> readSTRef asref) ks
           parse (kstates ++ ss)
                 env {reset = writeSTRef argsRef Nothing >> reset env}
            | otherwise -> parse ss env
     Alts as (Pure f) -> do
-      let args' = funArg f `composeArgs` args
+      let args' = args . f
           sts   = [State spos a args' scont | a <- as]
       parse (sts ++ ss) env
     Alts as p -> do
-      scont' <- newConts =<< newSTRef [Cont spos noArgs p args scont]
+      scont' <- newConts =<< newSTRef [Cont spos pure p args scont]
       -- State is (-1) so that nullable alts are expanded correctly
-      let sts = [State (-1) a noArgs scont' | a <- as]
+      let sts = [State (-1) a pure scont' | a <- as]
       parse (sts ++ ss) env
     Many p q    -> do
       c  <- newSTRef =<< newSTRef mempty
