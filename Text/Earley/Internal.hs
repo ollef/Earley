@@ -1,11 +1,10 @@
-{-# LANGUAGE CPP, BangPatterns, DeriveFunctor, GADTs, Rank2Types #-}
+{-# LANGUAGE CPP, BangPatterns, DeriveFunctor, GADTs, RecursiveDo, Rank2Types #-}
 -- | This module exposes the internals of the package: its API may change
 -- independently of the PVP-compliant version number.
 module Text.Earley.Internal where
 import Control.Applicative
 import Control.Arrow
 import Control.Monad
-import Control.Monad.Fix
 import Control.Monad.ST
 import Data.ListLike(ListLike)
 import qualified Data.ListLike as ListLike
@@ -21,33 +20,42 @@ import Data.Monoid
 -- | The concrete rule type that the parser uses
 data Rule s r e t a = Rule
   { ruleProd     :: ProdR s r e t a
-  , ruleNullable :: !(STRef s (Maybe [a]))
+  , ruleNullable :: !(STRef s [a])
   , ruleConts    :: !(STRef s (STRef s [Cont s r e t a r]))
   }
 
 type ProdR s r e t a = Prod (Rule s r) e t a
 
-nullable :: Rule s r e t a -> Results s a
-nullable r = Results $ do
-  mn <- readSTRef $ ruleNullable r
-  case mn of
-    Just xs -> return xs
-    Nothing -> do
-      writeSTRef (ruleNullable r) $ Just mempty
-      res <- unResults $ nullableProd $ ruleProd r
-      writeSTRef (ruleNullable r) $ Just res
-      return res
+nullable :: Rule s r e t a -> ST s [a]
+nullable r = readSTRef $ ruleNullable r
 
 nullableProd :: ProdR s r e t a -> Results s a
 nullableProd (Terminal _ _)    = mempty
-nullableProd (NonTerminal r p) = nullable r <**> nullableProd p
+nullableProd (NonTerminal r p) = Results (nullable r) <**> nullableProd p
 nullableProd (Pure a)          = pure a
 nullableProd (Alts as p)       = mconcat (map nullableProd as) <**> nullableProd p
-nullableProd (Many p q)        = nullableProd $ (pure <$> p <|> pure []) <**> q
+nullableProd (Many p q)        = nullableProd $ (pure [] <|> pure <$> p) <**> q
 nullableProd (Named p _)       = nullableProd p
 
 resetConts :: Rule s r e t a -> ST s ()
-resetConts r = writeSTRef (ruleConts r) =<< newSTRef []
+resetConts r = writeSTRef (ruleConts r) =<< newSTRef mempty
+
+isEmpty :: Prod r e t a -> Bool
+isEmpty (Alts [] _) = True
+isEmpty _           = False
+
+-- | Remove parts of a production that produce a result without consuming any
+-- input
+removeNulls :: Prod r e t a -> Prod r e t a
+removeNulls (Terminal p q)     = Terminal p q
+removeNulls (NonTerminal p q)  = NonTerminal p q
+removeNulls (Pure _)           = empty
+removeNulls (Alts as (Pure f)) = Alts
+  (filter (not . isEmpty) $ map removeNulls as) 
+  (Pure f)
+removeNulls (Alts as p)        = Alts as p
+removeNulls (Many p q)         = Many p q
+removeNulls (Named p n)        = Named (removeNulls p) n
 
 -------------------------------------------------------------------------------
 -- * Delayed results
@@ -72,12 +80,9 @@ instance Monoid (Results s a) where
 -------------------------------------------------------------------------------
 -- * States and continuations
 -------------------------------------------------------------------------------
-type Pos = Int
-
 -- | An Earley state with result type @a@.
 data State s r e t a where
-  State :: !Pos
-        -> !(ProdR s r e t a)
+  State :: !(ProdR s r e t a)
         -> !(a -> Results s b)
         -> !(Conts s r e t b c)
         -> State s r e t c
@@ -85,8 +90,7 @@ data State s r e t a where
 
 -- | A continuation accepting an @a@ and producing a @b@.
 data Cont s r e t a b where
-  Cont      :: !Pos
-            -> !(a -> Results s b)
+  Cont      :: !(a -> Results s b)
             -> !(ProdR s r e t (b -> c))
             -> !(c -> Results s d)
             -> !(Conts s r e t d e')
@@ -102,19 +106,19 @@ newConts :: STRef s [Cont s r e t a c] -> ST s (Conts s r e t a c)
 newConts r = Conts r <$> newSTRef Nothing
 
 contraMapCont :: (b -> Results s a) -> Cont s r e t a c -> Cont s r e t b c
-contraMapCont f (Cont cpos g p args cs) = Cont cpos (f >=> g) p args cs
-contraMapCont f (FinalCont args)        = FinalCont (f >=> args)
+contraMapCont f (Cont g p args cs) = Cont (f >=> g) p args cs
+contraMapCont f (FinalCont args)   = FinalCont (f >=> args)
 
 contToState :: Results s a -> Cont s r e t a c -> State s r e t c
-contToState r (Cont cpos g p args cs) = State cpos p (\f -> fmap f (r >>= g) >>= args) cs
-contToState r (FinalCont args)        = Final $ r >>= args
+contToState r (Cont g p args cs) = State p (\f -> fmap f (r >>= g) >>= args) cs
+contToState r (FinalCont args)   = Final $ r >>= args
 
 -- | Strings of non-ambiguous continuations can be optimised by removing
 --   indirections.
 simplifyCont :: Conts s r e t b a -> ST s [Cont s r e t b a]
 simplifyCont Conts {conts = cont} = readSTRef cont >>= go False
   where
-    go !_ [Cont _ g (Pure f) args cont'] = do
+    go !_ [Cont g (Pure f) args cont'] = do
       ks' <- simplifyCont cont'
       go True $ map (contraMapCont $ \b -> fmap f (g b) >>= args) ks'
     go True ks = do
@@ -125,21 +129,30 @@ simplifyCont Conts {conts = cont} = readSTRef cont >>= go False
 -------------------------------------------------------------------------------
 -- * Grammars
 -------------------------------------------------------------------------------
+mkRule :: ProdR s r e t a -> ST s (Rule s r e t a, ST s ())
+mkRule p = do
+  c  <- newSTRef =<< newSTRef mempty
+  n  <- newSTRef mempty
+  return ( Rule (removeNulls p) n c
+         , unResults (nullableProd p) >>= writeSTRef n
+         )
+
 -- | Interpret an abstract 'Grammar'.
-grammar :: Grammar (Rule s r) e a -> ST s a
+grammar :: Grammar (Rule s r) e a -> ST s (a, ST s ())
 grammar g = case g of
   RuleBind p k -> do
-    c  <- newSTRef =<< newSTRef mempty
-    nr <- newSTRef Nothing
-    grammar $ k $ NonTerminal (Rule p nr c) $ Pure id
-  FixBind f k   -> do
-    a <- mfix $ fmap grammar f
-    grammar $ k a
-  Return x      -> return x
+    (r, x) <- mkRule p
+    (a, y) <- grammar $ k $ NonTerminal r $ Pure id
+    return (a, x >> y)
+  FixBind f k   -> mdo
+    (a, x) <- grammar $ f a
+    (b, y) <- grammar $ k a
+    return (b, x >> y)
+  Return x      -> return (x, return ())
 
 -- | Given a grammar, construct an initial state.
 initialState :: ProdR s a e t a -> ST s (State s a e t a)
-initialState p = State (-1) p pure <$> (newConts =<< newSTRef [FinalCont pure])
+initialState p = State p pure <$> (newConts =<< newSTRef [FinalCont pure])
 
 -------------------------------------------------------------------------------
 -- * Parsing
@@ -190,7 +203,7 @@ data ParseEnv s e i t a = ParseEnv
     -- ^ Computation that resets the continuation refs of productions
   , names :: ![e]
     -- ^ Named productions encountered at this position
-  , pos   :: !Pos
+  , pos   :: !Int
     -- ^ The current position in the input string
   , input :: !i
     -- ^ The input string
@@ -231,25 +244,25 @@ parse [] env = do
          $ parse [] env {results = [], reset = return ()}
 parse (st:ss) env = case st of
   Final res -> parse ss env {results = unResults res : results env}
-  State spos pr args scont -> case pr of
+  State pr args scont -> case pr of
     Terminal f p -> case safeHead $ input env of
-      Just t | f t -> parse ss env {next = State spos p (args . ($ t)) scont
+      Just t | f t -> parse ss env {next = State p (args . ($ t)) scont
                                          : next env}
       _            -> parse ss env
     NonTerminal r p -> do
       rkref <- readSTRef $ ruleConts r
       ks    <- readSTRef rkref
-      writeSTRef rkref (Cont spos pure p args scont : ks)
-      nulls <- unResults $ nullable r
-      let nullStates | null nulls = mempty
-                     | otherwise  = pure $ State spos p (\g -> mconcat $ map (args . g) nulls) scont
+      writeSTRef rkref (Cont pure p args scont : ks)
+      nulls <- nullable r
+      let nullStates = [State p (\g -> mconcat $ map (args . g) nulls) scont
+                       | not $ null nulls]
       if null ks then do -- The rule has not been expanded at this position.
-        st' <- State (pos env) (ruleProd r) pure <$> newConts rkref
-        parse (st' : nullStates ++ ss)
+        st' <- State (ruleProd r) pure <$> newConts rkref
+        parse (nullStates ++ st' : ss)
               env {reset = resetConts r >> reset env}
       else -- The rule has already been expanded at this position.
         parse (nullStates ++ ss) env
-    Pure a | spos /= pos env -> do
+    Pure a -> do
       let argsRef = contsArgs scont
       masref  <- readSTRef argsRef
       case masref of
@@ -263,23 +276,19 @@ parse (st:ss) env = case st of
           let kstates = map (contToState $ Results $ join $ unResults <$> readSTRef asref) ks
           parse (kstates ++ ss)
                 env {reset = writeSTRef argsRef Nothing >> reset env}
-           | otherwise -> parse ss env
     Alts as (Pure f) -> do
       let args' = args . f
-          sts   = [State spos a args' scont | a <- as]
+          sts   = [State a args' scont | a <- as]
       parse (sts ++ ss) env
     Alts as p -> do
-      scont' <- newConts =<< newSTRef [Cont spos pure p args scont]
-      -- State is (-1) so that nullable alts are expanded correctly
-      let sts = [State (-1) a pure scont' | a <- as]
+      scont' <- newConts =<< newSTRef [Cont pure p args scont]
+      let sts = [State a pure scont' | a <- as]
       parse (sts ++ ss) env
-    Many p q    -> do
-      c  <- newSTRef =<< newSTRef mempty
-      nr <- newSTRef Nothing
-      let r   = Rule (pure [] <|> (:) <$> p <*> NonTerminal r (Pure id)) nr c
-          st' = State spos (NonTerminal r q) args scont
-      parse (st' : ss) env
-    Named pr' n -> parse (State spos pr' args scont : ss)
+    Many p q    -> mdo
+      (r, x) <- mkRule $ pure [] <|> (:) <$> p <*> NonTerminal r (Pure id)
+      x
+      parse (State (NonTerminal r q) args scont : ss) env
+    Named pr' n -> parse (State pr' args scont : ss)
                          env {names = n : names env}
 
 {-# INLINE parser #-}
@@ -289,7 +298,9 @@ parser :: ListLike i t
        -> i
        -> ST s (Result s e i a)
 parser g xs = do
-  s <- initialState =<< grammar g
+  (p, x) <- grammar g
+  x
+  s <- initialState p
   parse [s] $ emptyParseEnv xs
 
 -- | Return all parses from the result of a given parser. The result may
