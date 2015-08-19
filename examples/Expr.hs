@@ -28,4 +28,4 @@ expr = mdo
 main :: IO ()
 main = do
   x:_ <- getArgs
-  print $ fullParses $ parser expr $ words x
+  print $ fullParses (parser expr) $ words x

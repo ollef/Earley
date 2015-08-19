@@ -37,9 +37,9 @@ sentence = mdo
 
 main :: IO ()
 main = do
-  let p = parser sentence . words
-  print $ fullParses $ p "parsers use grammars"
-  print $ fullParses $ p "parsers munch long sentences"
-  print $ fullParses $ p "many great sentences confuse parsers"
-  print $ fullParses $ p "parsers use use"
-  print $ fullParses $ p "grammars many great confusing"
+  let p = fullParses (parser sentence) . words
+  print $ p "parsers use grammars"
+  print $ p "parsers munch long sentences"
+  print $ p "many great sentences confuse parsers"
+  print $ p "parsers use use"
+  print $ p "grammars many great confusing"

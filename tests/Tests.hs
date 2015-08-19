@@ -22,14 +22,14 @@ qcProps = testGroup "QuickCheck Properties"
     \e -> e `elem` parseAmbiguousExpr (prettyExpr 0 e)
   , QC.testProperty "The empty parser doesn't parse anything" $
     \(input :: String) ->
-      allParses (parser (return empty :: forall r. Grammar r () (Prod r () Char ())) input)
+      allParses (parser (return empty :: forall r. Grammar r () (Prod r () Char ()))) input
       == (,) [] Report { position   = 0
                        , expected   = []
                        , unconsumed = input
                        }
   , QC.testProperty "Many empty parsers parse very little" $
     \(input :: String) ->
-      allParses (parser (return $ many empty <* pure "blah" :: forall r. Grammar r () (Prod r () Char [()])) input)
+      allParses (parser (return $ many empty <* pure "blah" :: forall r. Grammar r () (Prod r () Char [()]))) input
       == (,) [([], 0)] Report { position   = 0
                               , expected   = []
                               , unconsumed = input
@@ -39,104 +39,104 @@ qcProps = testGroup "QuickCheck Properties"
 unitTests :: TestTree
 unitTests = testGroup "Unit Tests"
   [ HU.testCase "VeryAmbiguous gives the right number of results" $
-      length (fst $ fullParses $ parser veryAmbiguous $ replicate 8 'b') @?= 2871
+      length (fst $ fullParses (parser veryAmbiguous) $ replicate 8 'b') @?= 2871
   , HU.testCase "VeryAmbiguous gives the correct report" $
-      report (parser veryAmbiguous $ replicate 3 'b') @?=
+      report (parser veryAmbiguous) (replicate 3 'b') @?=
       Report {position = 3, expected = "s", unconsumed = ""}
   , HU.testCase "Inline alternatives work" $
       let input = "ababbbaaabaa" in
-      allParses (parser inlineAlts input) @?= allParses (parser nonInlineAlts input)
+      allParses (parser inlineAlts) input @?= allParses (parser nonInlineAlts) input
   , HU.testCase "Some reversed words" $
       let input = "wordwordstop"
           l     = length input in
-      allParses (parser someWords input)
+      allParses (parser someWords) input
       @?= (,) [(["stop", "drow", "drow"], l)] Report { position   = l
                                                      , expected   = []
                                                      , unconsumed = []
                                                      }
   , HU.testCase "Optional Nothing" $
-      fullParses (parser (return optional_) "b")
+      fullParses (parser $ return optional_) "b"
       @?= (,) [(Nothing, 'b')] Report {position = 1, expected = "", unconsumed = ""}
   , HU.testCase "Optional Just" $
-      fullParses (parser (return optional_) "ab")
+      fullParses (parser $ return optional_) "ab"
       @?= (,) [(Just 'a', 'b')] Report {position = 2, expected = "", unconsumed = ""}
   , HU.testCase "Optional using rules Nothing" $
-      fullParses (parser optionalRule "b")
+      fullParses (parser $ optionalRule) "b"
       @?= (,) [(Nothing, 'b')] Report {position = 1, expected = "", unconsumed = ""}
   , HU.testCase "Optional using rules Just" $
-      fullParses (parser optionalRule "ab")
+      fullParses (parser $ optionalRule) "ab"
       @?= (,) [(Just 'a', 'b')] Report {position = 2, expected = "", unconsumed = ""}
   , HU.testCase "Optional without continuation Nothing" $
-      fullParses (parser (return $ optional $ namedSymbol 'a') "")
+      fullParses (parser $ return $ optional $ namedSymbol 'a') ""
       @?= (,) [Nothing] Report {position = 0, expected = "a", unconsumed = ""}
   , HU.testCase "Optional without continuation Just" $
-      fullParses (parser (return $ optional $ namedSymbol 'a') "a")
+      fullParses (parser $ return $ optional $ namedSymbol 'a') "a"
       @?= (,) [Just 'a'] Report {position = 1, expected = "", unconsumed = ""}
   , HU.testCase "Optional using rules without continuation Nothing" $
-      fullParses (parser (rule $ optional $ namedSymbol 'a') "")
+      fullParses (parser $ rule $ optional $ namedSymbol 'a') ""
       @?= (,) [Nothing] Report {position = 0, expected = "a", unconsumed = ""}
   , HU.testCase "Optional using rules without continuation Just" $
-      fullParses (parser (rule $ optional $ namedSymbol 'a') "a")
+      fullParses (parser $ rule $ optional $ namedSymbol 'a') "a"
       @?= (,) [Just 'a'] Report {position = 1, expected = "", unconsumed = ""}
 
   , HU.testCase "Mixfix 1" $
       let x = Ident [Just "x"] in
-      fullParses (parser mixfixGrammar $ words "if x then x else x")
+      fullParses (parser mixfixGrammar) (words "if x then x else x")
       @?= (,) [App ifthenelse [x, x, x]] Report {position = 6, expected = [], unconsumed = []}
   , HU.testCase "Mixfix 2" $
       let x = Ident [Just "x"] in
-      fullParses (parser mixfixGrammar $ words "prefix x postfix")
+      fullParses (parser mixfixGrammar) (words "prefix x postfix")
       @?= (,) [App prefix [App postfix [x]]] Report {position = 3, expected = [], unconsumed = []}
   , HU.testCase "Mixfix 3" $
       let x = Ident [Just "x"] in
-      fullParses (parser mixfixGrammar $ words "x infix1 x infix2 x")
+      fullParses (parser mixfixGrammar) (words "x infix1 x infix2 x")
       @?= (,) [App infix1 [x, App infix2 [x, x]]] Report {position = 5, expected = [], unconsumed = []}
   , HU.testCase "Mixfix 4" $
       let x = Ident [Just "x"] in
-      fullParses (parser mixfixGrammar $ words "[ x ]")
+      fullParses (parser mixfixGrammar) (words "[ x ]")
       @?= (,) [App closed [x]] Report {position = 3, expected = [], unconsumed = []}
 
   , let x = words "+ + 5 6 7" in
     HU.testCase "Mixfix issue #11 1" $
-    fullParses (parser (issue11 LeftAssoc) x)
+    fullParses (parser $ issue11 LeftAssoc) x
     @?= (,) [] Report {position = 1, expected = [], unconsumed = drop 1 x}
   , let x = words "+ 5 + 6 7" in
     HU.testCase "Mixfix issue #11 2" $
-    fullParses (parser (issue11 LeftAssoc) x)
+    fullParses (parser $ issue11 LeftAssoc) x
     @?= (,) [] Report {position = 2, expected = [], unconsumed = drop 2 x}
   , let x = words "+ 5 6" in
     HU.testCase "Mixfix issue #11 3" $
-    fullParses (parser (issue11 LeftAssoc) x)
+    fullParses (parser $ issue11 LeftAssoc) x
     @?= (,) [Plus11 (Var11 "5") (Var11 "6")]
             Report {position = 3, expected = [], unconsumed = []}
   , let x = words "+ + 5 6 7" in
     HU.testCase "Mixfix issue #11 4" $
-    fullParses (parser (issue11 RightAssoc) x)
+    fullParses (parser $ issue11 RightAssoc) x
     @?= (,) [Plus11 (Plus11 (Var11 "5") (Var11 "6")) (Var11 "7")]
             Report {position = 5, expected = [], unconsumed = []}
   , let x = words "+ 5 + 6 7" in
     HU.testCase "Mixfix issue #11 5" $
-    fullParses (parser (issue11 RightAssoc) x)
+    fullParses (parser $ issue11 RightAssoc) x
     @?= (,) [Plus11 (Var11 "5") (Plus11 (Var11 "6") (Var11 "7"))]
             Report {position = 5, expected = [], unconsumed = []}
   , let x = words "+ 5 6" in
     HU.testCase "Mixfix issue #11 6" $
-    fullParses (parser (issue11 RightAssoc) x)
+    fullParses (parser $ issue11 RightAssoc) x
     @?= (,) [Plus11 (Var11 "5") (Var11 "6")]
             Report {position = 3, expected = [], unconsumed = []}
   , let x = words "+ + 5 6 7" in
     HU.testCase "Mixfix issue #11 7" $
-    fullParses (parser (issue11 NonAssoc) x)
+    fullParses (parser $ issue11 NonAssoc) x
     @?= (,) [Plus11 (Plus11 (Var11 "5") (Var11 "6")) (Var11 "7")]
             Report {position = 5, expected = [], unconsumed = []}
   , let x = words "+ 5 + 6 7" in
     HU.testCase "Mixfix issue #11 8" $
-    fullParses (parser (issue11 NonAssoc) x)
+    fullParses (parser $ issue11 NonAssoc) x
     @?= (,) [Plus11 (Var11 "5") (Plus11 (Var11 "6") (Var11 "7"))]
             Report {position = 5, expected = [], unconsumed = []}
   , let x = words "+ 5 6" in
     HU.testCase "Mixfix issue #11 9" $
-    fullParses (parser (issue11 NonAssoc) x)
+    fullParses (parser $ issue11 NonAssoc) x
     @?= (,) [Plus11 (Var11 "5") (Var11 "6")]
             Report {position = 3, expected = [], unconsumed = []}
   ]
@@ -173,10 +173,10 @@ veryAmbiguous = mdo
   return s
 
 parseExpr :: String -> [Expr]
-parseExpr input = fst (fullParses (parser expr (lexExpr input))) -- We need to annotate types for point-free version
+parseExpr input = fst (fullParses (parser expr) (lexExpr input)) -- We need to annotate types for point-free version
 
 parseAmbiguousExpr :: String -> [Expr]
-parseAmbiguousExpr input = fst (fullParses (parser ambiguousExpr (lexExpr input)))
+parseAmbiguousExpr input = fst (fullParses (parser ambiguousExpr) (lexExpr input))
 
 data Expr
   = Add Expr Expr

@@ -74,10 +74,10 @@ expr' = mdo
   return mul
 
 parseEarley :: [Token] -> Maybe Expr
-parseEarley input = listToMaybe (fst (fullParses (parser expr input)))
+parseEarley input = listToMaybe (fst (fullParses (parser expr) input))
 
 parseEarley' :: [Token] -> Maybe Expr
-parseEarley' input = listToMaybe (fst (fullParses (parser expr' input)))
+parseEarley' input = listToMaybe (fst (fullParses (parser expr') input))
 
 -- Parsec parsec
 

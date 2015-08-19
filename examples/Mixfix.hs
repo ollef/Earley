@@ -63,4 +63,4 @@ tokenize (x:xs)
 main :: IO ()
 main = do
   x:_ <- getArgs
-  print $ first (map pretty) $ fullParses $ parser grammar $ tokenize x
+  print $ first (map pretty) $ fullParses (parser grammar) $ tokenize x

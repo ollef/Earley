@@ -51,7 +51,7 @@ removeNulls (Terminal p q)     = Terminal p q
 removeNulls (NonTerminal p q)  = NonTerminal p q
 removeNulls (Pure _)           = empty
 removeNulls (Alts as (Pure f)) = Alts
-  (filter (not . isEmpty) $ map removeNulls as) 
+  (filter (not . isEmpty) $ map removeNulls as)
   (Pure f)
 removeNulls (Alts as p)        = Alts as p
 removeNulls (Many p q)         = Many p q
@@ -295,23 +295,24 @@ parse (st:ss) env = case st of
 -- | Create a parser from the given grammar.
 parser :: ListLike i t
        => (forall r. Grammar r e (Prod r e t a))
-       -> i
-       -> ST s (Result s e i a)
-parser g xs = do
+       -> ST s (i -> ST s (Result s e i a))
+parser g = do
   (p, x) <- grammar g
   x
   s <- initialState p
-  parse [s] $ emptyParseEnv xs
+  return $ parse [s] . emptyParseEnv
 
 -- | Return all parses from the result of a given parser. The result may
 -- contain partial parses. The 'Int's are the position at which a result was
 -- produced.
-allParses :: (forall s. ST s (Result s e i a)) -> ([(a, Int)], Report e i)
-allParses p = runST $ p >>= go
+allParses :: (forall s. ST s (i -> ST s (Result s e i a)))
+          -> i
+          -> ([(a, Int)], Report e i)
+allParses p i = runST $ p >>= ($ i) >>= go
   where
     go :: Result s e i a -> ST s ([(a, Int)], Report e i)
     go r = case r of
-      Ended rep          -> return ([], rep)
+      Ended rep           -> return ([], rep)
       Parsed mas cpos _ k -> do
         as <- mas
         fmap (first (zip as (repeat cpos) ++)) $ go =<< k
@@ -319,24 +320,30 @@ allParses p = runST $ p >>= go
 {-# INLINE fullParses #-}
 -- | Return all parses that reached the end of the input from the result of a
 --   given parser.
-fullParses :: ListLike i t => (forall s. ST s (Result s e i a)) -> ([a], Report e i)
-fullParses p = runST $ p >>= go
+fullParses :: ListLike i t
+           => (forall s. ST s (i -> ST s (Result s e i a)))
+           -> i
+           -> ([a], Report e i)
+fullParses p i = runST $ p >>= ($ i) >>= go
   where
     go :: ListLike i t => Result s e i a -> ST s ([a], Report e i)
     go r = case r of
       Ended rep -> return ([], rep)
-      Parsed mas _ i k
-        | ListLike.null i -> do
+      Parsed mas _ i' k
+        | ListLike.null i' -> do
           as <- mas
           fmap (first (as ++)) $ go =<< k
-        | otherwise       -> go =<< k
+        | otherwise -> go =<< k
 
 {-# INLINE report #-}
 -- | See e.g. how far the parser is able to parse the input string before it
 -- fails.  This can be much faster than getting the parse results for highly
 -- ambiguous grammars.
-report :: ListLike i t => (forall s. ST s (Result s e i a)) -> Report e i
-report p = runST $ p >>= go
+report :: ListLike i t
+       => (forall s. ST s (i -> ST s (Result s e i a)))
+       -> i
+       -> Report e i
+report p i = runST $ p >>= ($ i) >>= go
   where
     go :: ListLike i t => Result s e i a -> ST s (Report e i)
     go r = case r of

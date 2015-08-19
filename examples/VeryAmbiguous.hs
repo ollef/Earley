@@ -14,4 +14,4 @@ g = mdo
 main :: IO ()
 main = do
   xs:_ <- getArgs
-  print $ report $ parser g xs
+  print $ report (parser g) xs

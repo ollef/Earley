@@ -42,4 +42,4 @@ grammar = mdo
 main :: IO ()
 main = do
   x:_ <- getArgs
-  print $ fullParses $ parser grammar x
+  print $ fullParses (parser grammar) x

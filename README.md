@@ -36,7 +36,7 @@ This (Text.Earley) is a library consisting of two main parts:
    stupid tokeniser):
 
    ```haskell
-      fullParses $ parser expr $ words "a + b * ( c + d )"
+      fullParses (parser expr) $ words "a + b * ( c + d )"
       = ( [Add (Var "a") (Mul (Var "b") (Add (Var "c") (Var "d")))]
         , Report {...}
         )
@@ -50,7 +50,7 @@ This (Text.Earley) is a library consisting of two main parts:
    is the following:
 
    ```haskell
-      fullParses $ parser expr $ words "a +"
+      fullParses (parser expr) $ words "a +"
       = ( []
         , Report { position   = 2
                  , expected   = ["(","identifier","product"]
