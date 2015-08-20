@@ -74,7 +74,7 @@ instance Functor (Prod r e t) where
 
 -- | Smart constructor for alternatives.
 alts :: [Prod r e t a] -> Prod r e t (a -> b) -> Prod r e t b
-alts as p = case (as >>= go) of
+alts as p = case as >>= go of
   []  -> empty
   [a] -> a <**> p
   as' -> Alts as' p
