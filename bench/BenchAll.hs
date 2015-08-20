@@ -45,7 +45,7 @@ treeSum n = let a = n `div` 2 -- will be at least 1
 
 -- Earley parser
 
-expr :: Grammar r String (Prod r String Token Expr)
+expr :: Grammar r (Prod r String Token Expr)
 expr = mdo
   x1 <- rule $ Add <$> x1 <* namedSymbol "+" <*> x2
             <|> x2
@@ -61,12 +61,12 @@ isIdent :: String -> Bool
 isIdent (x:_) = isAlpha x
 isIdent _     = False
 
-sepBy1 :: Prod r e t a -> Prod r e t op -> Grammar r e (Prod r e t [a])
+sepBy1 :: Prod r e t a -> Prod r e t op -> Grammar r (Prod r e t [a])
 sepBy1 p op = mdo
   ops <- rule $ pure [] <|> (:) <$ op <*> p <*> ops
   rule $ (:) <$> p <*> ops
 
-expr' :: Grammar r String (Prod r String Token Expr)
+expr' :: Grammar r (Prod r String Token Expr)
 expr' = mdo
   let var = Var <$> satisfy isIdent <|> symbol "(" *> mul <* symbol ")"
   mul <- fmap (foldl1 Mul) <$> add `sepBy1` symbol "*"

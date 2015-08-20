@@ -11,7 +11,7 @@ data Expr
   | Lit Int
   deriving (Show)
 
-grammar :: forall r. Grammar r String (Prod r String Char Expr)
+grammar :: forall r. Grammar r (Prod r String Char Expr)
 grammar = mdo
 
   whitespace <- rule $ many $ satisfy isSpace

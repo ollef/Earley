@@ -5,7 +5,7 @@ import System.Environment
 
 import Text.Earley
 
-grammar :: Grammar r String (Prod r String Char [String])
+grammar :: Grammar r (Prod r String Char [String])
 grammar = mdo
   whitespace  <- rule $ () <$ many (satisfy isSpace)
   whitespace1 <- rule $ () <$ satisfy isSpace <* whitespace <?> "whitespace"

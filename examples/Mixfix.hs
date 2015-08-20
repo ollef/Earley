@@ -29,7 +29,7 @@ identTable = (map . map) (first holey)
   , [("_*_",           LeftAssoc)]
   ]
 
-grammar :: Grammar r String (Prod r String String Expr)
+grammar :: Grammar r (Prod r String String Expr)
 grammar = mdo
   ident     <- rule $ (V . pure . Just) <$> satisfy (not . (`HS.member` mixfixParts))
                    <?> "identifier"

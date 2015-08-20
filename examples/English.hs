@@ -22,7 +22,7 @@ data VerbPhrase = VerbPhrase Verb NounPhrase
                 | Verb Verb
   deriving Show
 
-sentence :: Grammar r String (Prod r String String Sentence)
+sentence :: Grammar r (Prod r String String Sentence)
 sentence = mdo
   noun       <- rule $ satisfy (`HS.member` nouns)      <?> "noun"
   verb       <- rule $ satisfy (`HS.member` verbs)      <?> "verb"

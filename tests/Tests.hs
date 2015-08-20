@@ -22,14 +22,14 @@ qcProps = testGroup "QuickCheck Properties"
     \e -> e `elem` parseAmbiguousExpr (prettyExpr 0 e)
   , QC.testProperty "The empty parser doesn't parse anything" $
     \(input :: String) ->
-      allParses (parser (return empty :: forall r. Grammar r () (Prod r () Char ()))) input
+      allParses (parser (return empty :: forall r. Grammar r (Prod r () Char ()))) input
       == (,) [] Report { position   = 0
                        , expected   = []
                        , unconsumed = input
                        }
   , QC.testProperty "Many empty parsers parse very little" $
     \(input :: String) ->
-      allParses (parser (return $ many empty <* pure "blah" :: forall r. Grammar r () (Prod r () Char [()]))) input
+      allParses (parser (return $ many empty <* pure "blah" :: forall r. Grammar r (Prod r () Char [()]))) input
       == (,) [([], 0)] Report { position   = 0
                               , expected   = []
                               , unconsumed = input
@@ -144,27 +144,27 @@ unitTests = testGroup "Unit Tests"
 optional_ :: Prod r Char Char (Maybe Char, Char)
 optional_ = (,) <$> optional (namedSymbol 'a') <*> namedSymbol 'b'
 
-optionalRule :: Grammar r Char (Prod r Char Char (Maybe Char, Char))
+optionalRule :: Grammar r (Prod r Char Char (Maybe Char, Char))
 optionalRule = mdo
   test <- rule $ (,) <$> optional (namedSymbol 'a') <*> namedSymbol 'b'
   return test
 
-inlineAlts :: Grammar r Char (Prod r Char Char String)
+inlineAlts :: Grammar r (Prod r Char Char String)
 inlineAlts = mdo
   p <- rule $ pure []
            <|> (:) <$> (namedSymbol 'a' <|> namedSymbol 'b') <*> p
   return p
 
-nonInlineAlts :: Grammar r Char (Prod r Char Char String)
+nonInlineAlts :: Grammar r (Prod r Char Char String)
 nonInlineAlts = mdo
   ab <- rule $ namedSymbol 'a' <|> namedSymbol 'b'
   p  <- rule $ pure [] <|> (:) <$> ab <*> p
   return p
 
-someWords :: Grammar r () (Prod r () Char [String])
+someWords :: Grammar r (Prod r () Char [String])
 someWords = return $ flip (:) <$> (map reverse <$> some (word "word")) <*> word "stop"
 
-veryAmbiguous :: Grammar r Char (Prod r Char Char ())
+veryAmbiguous :: Grammar r (Prod r Char Char ())
 veryAmbiguous = mdo
   s <- rule $ () <$ symbol 'b'
            <|> () <$ s <* s
@@ -198,7 +198,7 @@ instance Arbitrary Expr where
   shrink (Add a b)  = a : b : [ Add a' b | a' <- shrink a ] ++ [ Add a b' | b' <- shrink b ]
   shrink (Mul a b)  = a : b : [ Mul a' b | a' <- shrink a ] ++ [ Mul a b' | b' <- shrink b ]
 
-expr :: Grammar r String (Prod r String String Expr)
+expr :: Grammar r (Prod r String String Expr)
 expr = mdo
   x1 <- rule $ Add <$> x1 <* namedSymbol "+" <*> x2
             <|> x2
@@ -213,7 +213,7 @@ expr = mdo
     ident (x:_) = isAlpha x
     ident _     = False
 
-ambiguousExpr :: Grammar r String (Prod r String String Expr)
+ambiguousExpr :: Grammar r (Prod r String String Expr)
 ambiguousExpr = mdo
   x1 <- rule $ Add <$> x1 <* namedSymbol "+" <*> x1
             <|> x2
@@ -251,7 +251,7 @@ lexExpr (c : s)
 data MixfixExpr = Ident (Holey String) | App (Holey String) [MixfixExpr]
   deriving (Eq, Show)
 
-mixfixGrammar :: Grammar r String (Prod r String String MixfixExpr)
+mixfixGrammar :: Grammar r (Prod r String String MixfixExpr)
 mixfixGrammar = mixfixExpression table
                                  (Ident . pure . Just <$> namedSymbol "x")
                                  App
@@ -280,7 +280,7 @@ data Mixfix11
   | Plus11 Mixfix11 Mixfix11
   deriving (Eq, Ord, Show)
 
-issue11 :: Associativity -> Grammar r String (Prod r String String Mixfix11)
+issue11 :: Associativity -> Grammar r (Prod r String String Mixfix11)
 issue11 a = mdo
     atomicExpr <- rule $ Var11 <$> satisfy (/= "+")
 

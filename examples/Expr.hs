@@ -10,7 +10,7 @@ data Expr
   | Var String
   deriving (Eq, Ord, Show)
 
-expr :: Grammar r String (Prod r String String Expr)
+expr :: Grammar r (Prod r String String Expr)
 expr = mdo
   x1 <- rule $ Add <$> x1 <* namedSymbol "+" <*> x2
             <|> x2

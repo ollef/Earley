@@ -13,7 +13,7 @@ This (Text.Earley) is a library consisting of two main parts:
    into strings is the following:
 
    ```haskell
-      expr :: Grammar r String (Prod r String String Expr)
+      expr :: Grammar r (Prod r String String Expr)
       expr = mdo
         x1 <- rule $ Add <$> x1 <* namedSymbol "+" <*> x2
                   <|> x2
@@ -100,8 +100,8 @@ the Haskell ecosystem:
   language for both grammar and parser, i.e. there is no use of a separate
   tool. This also means that you are free to use the abstraction facilities of
   Haskell when writing a grammar. Currently the library requires a linear
-  traversal of the grammar before use, which is usually fast enough to do at
-  run time, but precludes infinite grammars.
+  traversal of the grammar's rules before use, which is usually fast enough to
+  do at run time, but precludes infinite grammars.
 
 * The grammar language is similar to that of many parser combinators (Parsec,
   Attoparsec, parallel parsing processes, etc.), providing an applicative
@@ -134,12 +134,6 @@ The parser implements an optimisation similar to that presented in Joop M.I.M
 Leo's paper *A general context-free parsing algorithm running in linear time on
 every LR(k) grammar without using lookahead*, which removes indirections in
 sequences of non-ambiguous backpointers between item sets.
-
-The implemented algorithm handles all CFGs, with one caveat: any production
-that accepts the empty string (i.e. an *epsilon* production) is only expanded
-*once* per position in the input string. This means that the parser does not
-give an infinite number of parse results for such grammars. This is usually not
-a problem.
 
 Contact
 -------

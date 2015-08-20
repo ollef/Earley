@@ -1,9 +1,10 @@
-{-# LANGUAGE CPP, BangPatterns, DeriveFunctor, GADTs, RecursiveDo, Rank2Types #-}
+{-# LANGUAGE CPP, BangPatterns, DeriveFunctor, GADTs, Rank2Types, RecursiveDo #-}
 -- | This module exposes the internals of the package: its API may change
 -- independently of the PVP-compliant version number.
 module Text.Earley.Internal where
 import Control.Applicative
 import Control.Arrow
+import Control.Monad.Fix
 import Control.Monad
 import Control.Monad.ST
 import Data.ListLike(ListLike)
@@ -19,43 +20,14 @@ import Data.Monoid
 -------------------------------------------------------------------------------
 -- | The concrete rule type that the parser uses
 data Rule s r e t a = Rule
-  { ruleProd     :: ProdR s r e t a
-  , ruleNullable :: !(STRef s [a])
-  , ruleConts    :: !(STRef s (STRef s [Cont s r e t a r]))
+  { ruleProd  :: ProdR s r e t a
+  , ruleConts :: !(STRef s (STRef s [Cont s r e t a r]))
   }
 
 type ProdR s r e t a = Prod (Rule s r) e t a
 
-nullable :: Rule s r e t a -> ST s [a]
-nullable r = readSTRef $ ruleNullable r
-
-nullableProd :: ProdR s r e t a -> Results s a
-nullableProd (Terminal _ _)    = mempty
-nullableProd (NonTerminal r p) = Results (nullable r) <**> nullableProd p
-nullableProd (Pure a)          = pure a
-nullableProd (Alts as p)       = mconcat (map nullableProd as) <**> nullableProd p
-nullableProd (Many p q)        = nullableProd $ (pure [] <|> pure <$> p) <**> q
-nullableProd (Named p _)       = nullableProd p
-
 resetConts :: Rule s r e t a -> ST s ()
 resetConts r = writeSTRef (ruleConts r) =<< newSTRef mempty
-
-isEmpty :: Prod r e t a -> Bool
-isEmpty (Alts [] _) = True
-isEmpty _           = False
-
--- | Remove parts of a production that produce a result without consuming any
--- input
-removeNulls :: Prod r e t a -> Prod r e t a
-removeNulls (Terminal p q)     = Terminal p q
-removeNulls (NonTerminal p q)  = NonTerminal p q
-removeNulls (Pure _)           = empty
-removeNulls (Alts as (Pure f)) = Alts
-  (filter (not . isEmpty) $ map removeNulls as)
-  (Pure f)
-removeNulls (Alts as p)        = Alts as p
-removeNulls (Many p q)         = Many p q
-removeNulls (Named p n)        = Named (removeNulls p) n
 
 -------------------------------------------------------------------------------
 -- * Delayed results
@@ -114,7 +86,7 @@ contToState r (Cont g p args cs) = State p (\f -> fmap f (r >>= g) >>= args) cs
 contToState r (FinalCont args)   = Final $ r >>= args
 
 -- | Strings of non-ambiguous continuations can be optimised by removing
---   indirections.
+-- indirections.
 simplifyCont :: Conts s r e t b a -> ST s [Cont s r e t b a]
 simplifyCont Conts {conts = cont} = readSTRef cont >>= go False
   where
@@ -129,26 +101,21 @@ simplifyCont Conts {conts = cont} = readSTRef cont >>= go False
 -------------------------------------------------------------------------------
 -- * Grammars
 -------------------------------------------------------------------------------
-mkRule :: ProdR s r e t a -> ST s (Rule s r e t a, ST s ())
+mkRule :: ProdR s r e t a -> ST s (Rule s r e t a)
 mkRule p = do
   c  <- newSTRef =<< newSTRef mempty
-  n  <- newSTRef mempty
-  return ( Rule (removeNulls p) n c
-         , unResults (nullableProd p) >>= writeSTRef n
-         )
+  return $ Rule p c
 
 -- | Interpret an abstract 'Grammar'.
-grammar :: Grammar (Rule s r) e a -> ST s (a, ST s ())
+grammar :: Grammar (Rule s r) a -> ST s a
 grammar g = case g of
   RuleBind p k -> do
-    (r, x) <- mkRule p
-    (a, y) <- grammar $ k $ NonTerminal r $ Pure id
-    return (a, x >> y)
-  FixBind f k   -> mdo
-    (a, x) <- grammar $ f a
-    (b, y) <- grammar $ k a
-    return (b, x >> y)
-  Return x      -> return (x, return ())
+    r <- mkRule p
+    grammar $ k $ NonTerminal r $ Pure id
+  FixBind f k   -> do
+    a <- mfix $ fmap grammar f
+    grammar $ k a
+  Return x      -> return x
 
 -- | Given a grammar, construct an initial state.
 initialState :: ProdR s a e t a -> ST s (State s a e t a)
@@ -187,12 +154,6 @@ safeHead :: ListLike i t => i -> Maybe t
 safeHead ts
   | ListLike.null ts = Nothing
   | otherwise        = Just $ ListLike.head ts
-
-{-# INLINE safeTail #-}
-safeTail :: ListLike i t => i -> i
-safeTail ts
-  | ListLike.null ts = ts
-  | otherwise        = ListLike.tail ts
 
 data ParseEnv s e i t a = ParseEnv
   { results :: ![ST s [a]]
@@ -237,7 +198,7 @@ parse [] env@ParseEnv {results = [], next = []} = do
     }
 parse [] env@ParseEnv {results = []} = do
   reset env
-  parse (next env) (emptyParseEnv $ safeTail $ input env) {pos = pos env + 1}
+  parse (next env) (emptyParseEnv $ ListLike.tail $ input env) {pos = pos env + 1}
 parse [] env = do
   reset env
   return $ Parsed (concat <$> sequence (results env)) (pos env) (input env)
@@ -253,15 +214,12 @@ parse (st:ss) env = case st of
       rkref <- readSTRef $ ruleConts r
       ks    <- readSTRef rkref
       writeSTRef rkref (Cont pure p args scont : ks)
-      nulls <- nullable r
-      let nullStates = [State p (\g -> mconcat $ map (args . g) nulls) scont
-                       | not $ null nulls]
       if null ks then do -- The rule has not been expanded at this position.
         st' <- State (ruleProd r) pure <$> newConts rkref
-        parse (nullStates ++ st' : ss)
+        parse (st' : ss)
               env {reset = resetConts r >> reset env}
       else -- The rule has already been expanded at this position.
-        parse (nullStates ++ ss) env
+        parse ss env
     Pure a -> do
       let argsRef = contsArgs scont
       masref  <- readSTRef argsRef
@@ -284,9 +242,8 @@ parse (st:ss) env = case st of
       scont' <- newConts =<< newSTRef [Cont pure p args scont]
       let sts = [State a pure scont' | a <- as]
       parse (sts ++ ss) env
-    Many p q    -> mdo
-      (r, x) <- mkRule $ pure [] <|> (:) <$> p <*> NonTerminal r (Pure id)
-      x
+    Many p q -> mdo
+      r <- mkRule $ pure [] <|> (:) <$> p <*> NonTerminal r (Pure id)
       parse (State (NonTerminal r q) args scont : ss) env
     Named pr' n -> parse (State pr' args scont : ss)
                          env {names = n : names env}
@@ -294,12 +251,10 @@ parse (st:ss) env = case st of
 {-# INLINE parser #-}
 -- | Create a parser from the given grammar.
 parser :: ListLike i t
-       => (forall r. Grammar r e (Prod r e t a))
+       => (forall r. Grammar r (Prod r e t a))
        -> ST s (i -> ST s (Result s e i a))
 parser g = do
-  (p, x) <- grammar g
-  x
-  s <- initialState p
+  s <- initialState =<< grammar g
   return $ parse [s] . emptyParseEnv
 
 -- | Return all parses from the result of a given parser. The result may

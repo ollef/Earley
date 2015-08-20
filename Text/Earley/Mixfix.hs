@@ -52,7 +52,7 @@ mixfixExpression
   -> (Holey ident -> [expr] -> expr)
   -- ^ How to combine the successful application of a holey identifier to its
   -- arguments into an expression.
-  -> Grammar r e (Prod r e t expr)
+  -> Grammar r (Prod r e t expr)
 mixfixExpression table atom app = mixfixExpressionSeparate table' atom
   where
     table' = [[(holey, assoc, app) | (holey, assoc) <- row] | row <- table]
@@ -74,7 +74,7 @@ mixfixExpressionSeparate
   -> Prod r e t expr
   -- ^ An atom, i.e. what is parsed at the lowest level. This will
   -- commonly be a (non-mixfix) identifier or a parenthesised expression.
-  -> Grammar r e (Prod r e t expr)
+  -> Grammar r (Prod r e t expr)
 mixfixExpressionSeparate table atom = mdo
   expr <- foldrM ($) atom $ map (level expr) table
   return expr

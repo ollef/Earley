@@ -6,6 +6,7 @@ module Text.Earley.Grammar
   , (<?>)
   , Grammar(..)
   , rule
+  , alts
   ) where
 import Control.Applicative
 import Control.Monad
@@ -71,16 +72,17 @@ instance Functor (Prod r e t) where
   fmap f (Many p q)        = Many p $ fmap (f .) q
   fmap f (Named p n)       = Named (fmap f p) n
 
-alts :: [Prod r e t a] -> Prod r e t a
-alts as = Alts (as >>= go) $ pure id
+-- | Smart constructor for alternatives.
+alts :: [Prod r e t a] -> Prod r e t (a -> b) -> Prod r e t b
+alts as p = case (as >>= go) of
+  []  -> empty
+  [a] -> a <**> p
+  as' -> Alts as' p
   where
+    go (Alts [] _)         = []
     go (Alts as' (Pure f)) = fmap f <$> as'
+    go (Named p' n)        = map (<?> n) $ go p'
     go a                   = [a]
-
-alts' :: [Prod r e t a] -> Prod r e t (a -> b) -> Prod r e t b
-alts' [] _        = Alts [] $ pure id
-alts' as (Pure f) = alts $ fmap f <$> as
-alts' as p        = Alts as p
 
 instance Applicative (Prod r e t) where
   pure = Pure
@@ -88,15 +90,15 @@ instance Applicative (Prod r e t) where
   Terminal b p    <*> q = Terminal b $ flip <$> p <*> q
   NonTerminal r p <*> q = NonTerminal r $ flip <$> p <*> q
   Pure f          <*> q = fmap f q
-  Alts as p       <*> q = alts' as $ flip <$> p <*> q
+  Alts as p       <*> q = alts as $ flip <$> p <*> q
   Many a p        <*> q = Many a $ flip <$> p <*> q
   Named p n       <*> q = Named (p <*> q) n
 
 instance Alternative (Prod r e t) where
-  empty = alts []
+  empty = Alts [] $ pure id
   Named p m <|> q         = Named (p <|> q) m
   p         <|> Named q n = Named (p <|> q) n
-  p         <|> q         = alts [p, q]
+  p         <|> q         = alts [p, q] $ pure id
   many (Alts [] _) = pure []
   many p           = Many p $ Pure id
   some p           = (:) <$> p <*> many p
@@ -107,8 +109,6 @@ instance Alternative (Prod r e t) where
 --
 -- @a@: The return type of the grammar (often a 'Prod').
 --
--- @e@: The type of names, used for example to report expected tokens.
---
 -- @r@: The type of a non-terminal. This plays a role similar to the @s@ in the
 --      type @ST s a@.  Since the 'parser' function expects the @r@ to be
 --      universally quantified, there is not much to do with this parameter
@@ -118,29 +118,29 @@ instance Alternative (Prod r e t) where
 -- e.g.  'Monad' and 'MonadFix'. Note that GHC has syntactic sugar for
 -- 'MonadFix': use @{-\# LANGUAGE RecursiveDo \#-}@ and @mdo@ instead of
 -- @do@.
-data Grammar r e a where
-  RuleBind :: Prod r e t a -> (Prod r e t a -> Grammar r e b) -> Grammar r e b
-  FixBind  :: (a -> Grammar r e a) -> (a -> Grammar r e b) -> Grammar r e b
-  Return   :: a -> Grammar r e a
+data Grammar r a where
+  RuleBind :: Prod r e t a -> (Prod r e t a -> Grammar r b) -> Grammar r b
+  FixBind  :: (a -> Grammar r a) -> (a -> Grammar r b) -> Grammar r b
+  Return   :: a -> Grammar r a
 
-instance Functor (Grammar r e) where
+instance Functor (Grammar r) where
   fmap f (RuleBind ps h) = RuleBind ps (fmap f . h)
   fmap f (FixBind g h)   = FixBind g (fmap f . h)
   fmap f (Return x)      = Return $ f x
 
-instance Applicative (Grammar r e) where
+instance Applicative (Grammar r) where
   pure  = return
   (<*>) = ap
 
-instance Monad (Grammar r e) where
+instance Monad (Grammar r) where
   return = Return
   RuleBind ps f >>= k = RuleBind ps (f >=> k)
   FixBind f g   >>= k = FixBind f (g >=> k)
   Return x      >>= k = k x
 
-instance MonadFix (Grammar r e) where
+instance MonadFix (Grammar r) where
   mfix f = FixBind f return
 
 -- | Create a new non-terminal by giving its production.
-rule :: Prod r e t a -> Grammar r e (Prod r e t a)
+rule :: Prod r e t a -> Grammar r (Prod r e t a)
 rule p = RuleBind p return
