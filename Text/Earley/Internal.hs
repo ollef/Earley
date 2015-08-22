@@ -35,6 +35,14 @@ resetConts r = writeSTRef (ruleConts r) =<< newSTRef mempty
 newtype Results s a = Results { unResults :: ST s [a] }
   deriving Functor
 
+lazyResults :: ST s [a] -> ST s (Results s a)
+lazyResults stas = mdo
+  resultsRef <- newSTRef $ do
+    as <- stas
+    writeSTRef resultsRef $ return as
+    return as
+  return $ Results $ join $ readSTRef resultsRef
+
 instance Applicative (Results s) where
   pure  = return
   (<*>) = ap
@@ -58,7 +66,7 @@ data State s r e t a where
         -> !(a -> Results s b)
         -> !(Conts s r e t b c)
         -> State s r e t c
-  Final :: Results s a -> State s r e t a
+  Final :: !(Results s a) -> State s r e t a
 
 -- | A continuation accepting an @a@ and producing a @b@.
 data Cont s r e t a b where
@@ -231,7 +239,8 @@ parse (st:ss) env = case st of
           asref <- newSTRef $ args a
           writeSTRef argsRef $ Just asref
           ks  <- simplifyCont scont
-          let kstates = map (contToState $ Results $ join $ unResults <$> readSTRef asref) ks
+          res <- lazyResults $ join $ unResults <$> readSTRef asref
+          let kstates = map (contToState res) ks
           parse (kstates ++ ss)
                 env {reset = writeSTRef argsRef Nothing >> reset env}
     Alts as (Pure f) -> do
