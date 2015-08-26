@@ -21,6 +21,9 @@ tested-with:
                      GHC == 7.10.1,
                      GHC == 7.10.2
 
+extra-source-files:
+                      README.md
+
 Flag Examples
   Description: "Build examples"
   Default:     False
