@@ -36,8 +36,6 @@ matrix:
       addons: {apt: {packages: [cabal-install-head,ghc-head], sources: [hvr-ghc]}}
 
   allow_failures:
-    # This doesn't work due to a travis bug
-    - env: CABALVER=1.22 GHCVER=7.10.2
     - env: CABALVER=head GHCVER=head
 
 before_install:
