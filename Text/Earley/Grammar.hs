@@ -23,14 +23,16 @@ infixr 0 <?>
 --
 -- @a@: The return type of the production.
 --
--- @t@: The type of the terminals that the production operates on.
+-- @t@ for terminal: The type of the terminals that the production operates
+-- on.
 --
--- @e@: The type of names, used for example to report expected tokens.
+-- @e@ for expected: The type of names, used for example to report expected
+-- tokens.
 --
--- @r@: The type of a non-terminal. This plays a role similar to the @s@ in the
---      type @ST s a@.  Since the 'parser' function expects the @r@ to be
---      universally quantified, there is not much to do with this parameter
---      other than leaving it universally quantified.
+-- @r@ for rule: The type of a non-terminal. This plays a role similar to the
+-- @s@ in the type @ST s a@.  Since the 'parser' function expects the @r@ to be
+-- universally quantified, there is not much to do with this parameter other
+-- than leaving it universally quantified.
 --
 -- As an example, @'Prod' r 'String' 'Char' 'Int'@ is the type of a production that
 -- returns an 'Int', operates on (lists of) characters and reports 'String'
@@ -109,10 +111,10 @@ instance Alternative (Prod r e t) where
 --
 -- @a@: The return type of the grammar (often a 'Prod').
 --
--- @r@: The type of a non-terminal. This plays a role similar to the @s@ in the
---      type @ST s a@.  Since the 'parser' function expects the @r@ to be
---      universally quantified, there is not much to do with this parameter
---      other than leaving it universally quantified.
+-- @r@ for rule: The type of a non-terminal. This plays a role similar to the
+-- @s@ in the type @ST s a@.  Since the 'parser' function expects the @r@ to be
+-- universally quantified, there is not much to do with this parameter other
+-- than leaving it universally quantified.
 --
 -- Most of the functionality of 'Grammar's is obtained through its instances,
 -- e.g.  'Monad' and 'MonadFix'. Note that GHC has syntactic sugar for
