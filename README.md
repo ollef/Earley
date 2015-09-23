@@ -135,6 +135,9 @@ Leo's paper *A general context-free parsing algorithm running in linear time on
 every LR(k) grammar without using lookahead*, which removes indirections in
 sequences of non-ambiguous backpointers between item sets.
 
+For more in-depth information about the internals of the library, there are
+[implementation notes](docs/implementation.md) currently being written.
+
 Contact
 -------
 
