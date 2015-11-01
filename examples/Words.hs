@@ -10,7 +10,7 @@ grammar = mdo
   whitespace  <- rule $ () <$ many (satisfy isSpace)
   whitespace1 <- rule $ () <$ satisfy isSpace <* whitespace <?> "whitespace"
 
-  ident <- rule 
+  ident <- rule
     $ (:) <$> satisfy isAlpha <*> many (satisfy isAlphaNum)
    <?> "identifier"
 
