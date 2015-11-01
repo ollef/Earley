@@ -1,3 +1,7 @@
+# 0.10.0.1
+
+- Add changelog
+
 # 0.10
 
 - Remove `Args`, and use `Results` instead
