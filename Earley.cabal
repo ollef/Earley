@@ -28,6 +28,7 @@ extra-source-files:
 Flag Examples
   Description: "Build examples"
   Default:     False
+  Manual:      True
 
 source-repository    head
   type:     git
