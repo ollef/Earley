@@ -17,6 +17,11 @@ Let's start by having a look at how parser combinator libraries usually work.
 I'm aware that this doesn't give the full picture in terms of available
 libraries for parsing --- it ignores e.g. parser generators --- but I believe
 this way actually gives the best intuition for how the Earley library works.
+On the surface I think that the Earley library is more similar to combinator
+libraries than to parser generators because of the (Applicative, embedded in a
+powerful host language) interface that it provides. However, the
+*functionality* that it provides may more accurately be compared to parser
+generator libraries.
 
 Parser combinators
 -------
@@ -32,12 +37,10 @@ I know of three ways that parser combinator libraries handle alternatives:
 
 Some examples of libraries in these categories are
 
-* *Parsec*, which is greedy by default, but backtracks from wherever the `try`
+* [Parsec](https://hackage.haskell.org/package/parsec), which is greedy by default, but backtracks from wherever the `try`
   combinator is used,
-* *Attoparsec*, which is backtracking, and
-* *Parsek* (a.k.a. parallel parsing processes), which is parallel.
-
-TODO add proper references
+* [Attoparsec](https://hackage.haskell.org/package/attoparsec), which is backtracking, and
+* [Parsek](https://hackage.haskell.org/package/parsek) (a.k.a. parallel parsing processes), which is parallel.
 
 The following is a small expression language given in BNF:
 
@@ -240,13 +243,14 @@ I know of two situations where there is potential to share work.
 
 The first is when we encounter the same non-terminal at the same position.
 As an example, there is no need to re-do the work of `x` in both branches
-of `a` in the following grammar. A better idea would be to just parse `x`
-once and carry on with `rest1 | rest2`.
+of `a` in the following grammar.
 
 ```
 a ::= x rest1 | x rest2
 ```
 
+A better idea would be to just parse `x`
+once and carry on with `rest1 | rest2`.
 Pictorially, we want the following branching structure:
 ```
        rest1
@@ -266,26 +270,26 @@ We do not want the following, which we have in parallel parsing:
 
 A more general example is whenever we are parsing two unrelated branches at the same position, such as:
 ```
-a ::= 'a' x rest1
-b ::= 'b' x rest2
+a ::= start1 x rest1
+b ::= start2 x rest2
 ```
 If we are parsing `a` and `b` at the same time we also want to share the work
-of the non-terminal `x`:
+of the non-terminal `x` whenever it's encountered at the same position:
 ```
-a---'a'   --rest1
-       \ /
-        x
-       / \
-b---'b'   --rest2
+a---start1   --rest1
+          \ /
+           x
+          / \
+b---start2   --rest2
 ```
 What we don't want is to keep the two branches independent:
 ```
-a---'a'---x---rest1
+a---start1---x---rest1
 
-b---'b'---x---rest2
+b---start2---x---rest2
 ```
 
-It turns out that if we never re-do the work of a non-terminal, we may
+It turns out that if we never re-do the work of a non-terminal, we can
 automatically gain support for left-recursive grammars, since the main problem
 there is the infinite expansion of recursive non-terminals.
 
@@ -318,7 +322,7 @@ a     rest
   y--
 
 ```
-We do not want the following, which we have in parallel parsing:
+We do not want the following, which we sometimes have in combinator libraries.
 ```
   x---rest
  /
@@ -374,7 +378,7 @@ The note that duplicate states are not added is very important. It means that:
     *completions* from the earlier state that it refers to are added to the
     current state set.
 
-The points are the essence of Earley parsing, and mean that we are work-sharing
+These points are the essence of Earley parsing, and mean that we are work-sharing
 precisely as outlined above.
 
 State sets
@@ -382,13 +386,13 @@ State sets
 
 The state set does not have to be a set, as long as we follow the two points
 above (note that they make no use of set-specific properties, but only that we
-do not expand the same thing more than once per position).  So if we can follow
-the two points above, we can use whatever representation of state collections
-that we find appropriate. In the Earley library, productions can contain
-functions, e.g. functions of type `token -> Bool` for matching input tokens
-with arbitrary predicates, which means that they are not in general comparable
-(they are not in the `Ord` typeclass). Since this means that we cannot use `Set`
-or similar containers, we instead use lists of states.
+do not expand the same thing more than once per position).  We can use whatever
+representation of state collections that we find appropriate as long as we do
+that. In the Earley library, productions can contain functions, e.g.
+of type `token -> Bool` for matching input tokens with arbitrary predicates,
+which means that they are not in general comparable (they are not in the `Ord`
+typeclass). Since this means that we cannot use `Set` or similar containers, we
+instead use lists of states.
 
 Additionally, we do not have to keep states from earlier positions around,
 as long as we have enough information to perform the completion step.
@@ -397,11 +401,11 @@ The Earley library keeps only two lists of Earley states: One for the current
 position and one for the next position, and follows the two points above by
 machinery that will now be described.
 
-The representation of states is also different from the classical presentations
+The representation of states is different from the classical presentations
 of Earley's algorithm.
 We represent a state as a production and a *continuation pointer*. We keep only
 the part of the production that is left to parse, i.e. we drop everything before
-"the dot" in Earley's states. We also have a special `Final` state for
+"the dot" in Earley's states. We have a special `Final` state for
 when we are done.
 The continuation pointer is a mutable reference to a list of continuations,
 which correspond to possible completions in the original algorithm.
@@ -437,6 +441,7 @@ make the next-states the current, and use the empty list for the new
 next-states.
 
 The *scanning* step is done just like in Earley's original algorithm;
+when processing `(prod1, ptr)`,
 if `prod1 = 'x' prod1'` and the current position in the input is an `'x'`,
 then we add `(prod1', ptr)` to the list for the next position.
 
@@ -445,12 +450,12 @@ more peculiar. First we need to look at how a non-terminal is represented.
 
 We are using the generalised representation of productions from above where
 alternatives can occur anywhere in the tree (which also means that productions
-are in the standard `Alternative` typeclass), so we just need to associate
+are in the standard Haskell `Alternative` typeclass), so we just need to associate
 a production (and not e.g. a list of productions) with every non-terminal.
 
 Every non-terminal is also associated with a mutable reference to a mutable
-reference (no, that is not a typo) to a list of continuations. So possibly a
-bit like this:
+reference (no, that is not a typo) to a list of continuations. So a non-terminal
+might look a bit like this:
 
 ```
       cont1
@@ -539,11 +544,24 @@ states in the next-list stay intact.
 Now we come to *completion*, which is what happens when we process a state
 of the form `(EMPTY, ptr)`. Then we simply look up the continuations
 by following `ptr` and add those to the current-list.
-
 Pretending that `xProd` was `EMPTY` In the above picture, we would add
 `(prod1, ptr1)` and `(prod2, ptr2)` to the current-list.
 
-TODO solving point 2
+Since we do not tie alternatives to non-terminals, we have an additional
+operation which happens when we encounter alternatives. In the original
+Earley algorithm this is baked into the *prediction* step, and in our
+formulation of the algorithm this operation is basically the same
+as *prediction*.
+
+When processing a state `((alt1 | alt2) prod, ptr)` we create
+a new continuation pointer, `newptr` that points to `(prod, ptr)`,
+and continue with the states `(alt1, newptr)` and `(alt2, newptr)`.
+With this operation in place we have to be more careful when we do *completion*.
+Just like we made sure that a non-terminal is only expanded once per position
+in the input we have to make sure that completion of a continuation is only
+done once per position. For now we can think of this as pairing a mutable
+boolean with each list of continuations that we point to, though this is
+slighly more complicated when we also have to deal with parse results.
 
 TODO simplifyCont/Leo's optimisation
 
