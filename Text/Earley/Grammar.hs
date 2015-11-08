@@ -4,9 +4,10 @@ module Text.Earley.Grammar
   ( Prod(..)
   , satisfy
   , (<?>)
+  , alts
   , Grammar(..)
   , rule
-  , alts
+  , runGrammar
   ) where
 import Control.Applicative
 import Control.Monad
@@ -146,3 +147,17 @@ instance MonadFix (Grammar r) where
 -- | Create a new non-terminal by giving its production.
 rule :: Prod r e t a -> Grammar r (Prod r e t a)
 rule p = RuleBind p return
+
+-- | Run a grammar, given an action to perform on productions to be turned into
+-- non-terminals.
+runGrammar :: MonadFix m
+           => (forall e t a. Prod r e t a -> m (Prod r e t a))
+           -> Grammar r b -> m b
+runGrammar r grammar = case grammar of
+  RuleBind p k -> do
+    nt <- r p
+    runGrammar r $ k nt
+  Return a -> return a
+  FixBind f k -> do
+    a <- mfix $ runGrammar r <$> f
+    runGrammar r $ k a

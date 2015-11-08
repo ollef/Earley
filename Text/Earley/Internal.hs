@@ -4,7 +4,6 @@
 module Text.Earley.Internal where
 import Control.Applicative
 import Control.Arrow
-import Control.Monad.Fix
 import Control.Monad
 import Control.Monad.ST
 import Data.ListLike(ListLike)
@@ -113,17 +112,6 @@ mkRule :: ProdR s r e t a -> ST s (Rule s r e t a)
 mkRule p = do
   c  <- newSTRef =<< newSTRef mempty
   return $ Rule p c
-
--- | Interpret an abstract 'Grammar'.
-grammar :: Grammar (Rule s r) a -> ST s a
-grammar g = case g of
-  RuleBind p k -> do
-    r <- mkRule p
-    grammar $ k $ NonTerminal r $ Pure id
-  FixBind f k   -> do
-    a <- mfix $ fmap grammar f
-    grammar $ k a
-  Return x      -> return x
 
 -- | Given a grammar, construct an initial state.
 initialState :: ProdR s a e t a -> ST s (State s a e t a)
@@ -263,7 +251,8 @@ parser :: ListLike i t
        => (forall r. Grammar r (Prod r e t a))
        -> ST s (i -> ST s (Result s e i a))
 parser g = do
-  s <- initialState =<< grammar g
+  let nt x = NonTerminal x $ pure id
+  s <- initialState =<< runGrammar (fmap nt . mkRule) g
   return $ parse [s] . emptyParseEnv
 
 -- | Return all parses from the result of a given parser. The result may
