@@ -13,13 +13,7 @@ copyright:           (c) 2014-2015 Olle Fredriksson
 category:            Parsing
 build-type:          Simple
 cabal-version:       >=1.10
-tested-with:
-                     GHC == 7.8.1,
-                     GHC == 7.8.2,
-                     GHC == 7.8.3,
-                     GHC == 7.8.4,
-                     GHC == 7.10.1,
-                     GHC == 7.10.2
+tested-with:         GHC ==7.6.*, GHC==7.8.*, GHC==7.10.*, GHC==7.11.*
 
 extra-source-files:
                       README.md
