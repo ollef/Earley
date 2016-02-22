@@ -318,8 +318,8 @@ instance Arbitrary a => Arbitrary (Issue14 a) where
 
 issue14Length :: Issue14 () -> Int
 issue14Length (Pure ()) = 1
-issue14Length (Alt a b) = ((+) $! issue14Length a) $! issue14Length b
-issue14Length (Ap a b)  = ((*) $! issue14Length a) $! issue14Length b
+issue14Length (Alt a b) = issue14Length a + issue14Length b
+issue14Length (Ap a b)  = issue14Length a * issue14Length b
 
 issue14 :: Issue14 () -> Grammar r (Prod r () Char ())
 issue14 tree = do
