@@ -7,6 +7,7 @@ import Data.ListLike(ListLike)
 import qualified Data.ListLike as ListLike
 import Data.Maybe(catMaybes)
 import Data.STRef.Lazy
+import qualified Test.QuickCheck as QC
 import Text.Earley.Grammar
 #if !MIN_VERSION_base(4,8,0)
 import Data.Monoid
@@ -282,3 +283,11 @@ language grammar ts = runST $ generator grammar >>= ($ ts) >>= go
       let nt x = NonTerminal x $ pure id
       s <- initialState =<< runGrammar (fmap nt . mkRule) g
       return $ generate [s] . emptyGenerationEnv
+
+-------------------------------------------------------------------------------
+-- * Arbitrary members of a grammar
+-------------------------------------------------------------------------------
+arbitrary :: (forall r. Grammar r (Prod r e t a)) -> [t] -> QC.Gen (a, [t])
+arbitrary grammar ts = QC.sized $ \n -> QC.elements (take (1 `max` n) xs)
+  where
+    xs = language grammar ts
