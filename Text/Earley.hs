@@ -3,7 +3,7 @@ module Text.Earley
   ( -- * Context-free grammars
     Prod, satisfy, (<?>), Grammar, rule
   , -- * Derived operators
-    symbol, namedSymbol, word
+    symbol, namedSymbol, word, word'
   , -- * Parsing
     Report(..), Result(..), parser, allParses, fullParses
     -- * Recognition
