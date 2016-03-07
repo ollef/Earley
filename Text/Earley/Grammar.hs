@@ -12,6 +12,7 @@ module Text.Earley.Grammar
 import Control.Applicative
 import Control.Monad
 import Control.Monad.Fix
+import Data.String (IsString(..))
 #if !MIN_VERSION_base(4,8,0)
 import Data.Monoid
 #endif
@@ -105,6 +106,17 @@ instance Alternative (Prod r e t) where
   many (Alts [] _) = pure []
   many p           = Many p $ Pure id
   some p           = (:) <$> p <*> many p
+  
+-- | String literals can be interpreted as 'Terminal's
+-- that match that string. 
+-- 
+-- >>> :set -XOverloadedStrings
+-- >>> import Data.Text (Text)
+-- >>> let determiner = "the" <|> "a" <|> "an" :: Prod r e Text Text
+-- 
+instance (IsString t, Eq t, a ~ t) => IsString (Prod r e t a) where
+ fromString s = satisfy (== fromString s) 
+ {-# INLINE fromString #-}
 
 -- | A context-free grammar.
 --
