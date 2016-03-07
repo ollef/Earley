@@ -1,6 +1,8 @@
 -- | Derived operators.
 module Text.Earley.Derived where
 import Control.Applicative hiding (many)
+import Data.ListLike (ListLike)
+import qualified Data.ListLike as ListLike
 
 import Text.Earley.Grammar
 
@@ -16,3 +18,7 @@ namedSymbol x = symbol x <?> x
 {-# INLINE word #-}
 word :: Eq t => [t] -> Prod r e t [t]
 word = foldr (liftA2 (:) . satisfy . (==)) (pure [])
+
+{-# INLINE word' #-}
+word' :: (ListLike i t, Eq t) => i -> Prod r e t [t]
+word' = foldr (\a b -> liftA2 (:) (satisfy (a ==)) b) (pure []) . ListLike.toList
