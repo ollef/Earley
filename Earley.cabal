@@ -114,7 +114,7 @@ benchmark bench
 
 test-suite tests
   type:                exitcode-stdio-1.0
-  main-is:             Tests.hs
+  main-is:             Main.hs
   ghc-options:         -Wall
   hs-source-dirs:      tests
   default-language:    Haskell2010
