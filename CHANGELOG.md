@@ -1,3 +1,7 @@
+# Unreleased
+
+- Add `IsString Prod` instance
+
 # 0.10.1.0
 
 - Fix bug concerning nullable rules (#14)
