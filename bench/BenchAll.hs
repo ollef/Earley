@@ -47,14 +47,14 @@ treeSum n = let a = n `div` 2 -- will be at least 1
 
 expr :: Grammar r (Prod r String Token Expr)
 expr = mdo
-  x1 <- rule $ Add <$> x1 <* namedSymbol "+" <*> x2
+  x1 <- rule $ Add <$> x1 <* namedToken "+" <*> x2
             <|> x2
             <?> "sum"
-  x2 <- rule $ Mul <$> x2 <* namedSymbol "*" <*> x3
+  x2 <- rule $ Mul <$> x2 <* namedToken "*" <*> x3
             <|> x3
             <?> "product"
   x3 <- rule $ Var <$> (satisfy isIdent <?> "identifier")
-            <|> namedSymbol "(" *> x1 <* namedSymbol ")"
+            <|> namedToken "(" *> x1 <* namedToken ")"
   return x1
 
 isIdent :: String -> Bool
@@ -68,9 +68,9 @@ sepBy1 p op = mdo
 
 expr' :: Grammar r (Prod r String Token Expr)
 expr' = mdo
-  let var = Var <$> satisfy isIdent <|> symbol "(" *> mul <* symbol ")"
-  mul <- fmap (foldl1 Mul) <$> add `sepBy1` symbol "*"
-  add <- fmap (foldl1 Add) <$> var `sepBy1` symbol "+"
+  let var = Var <$> satisfy isIdent <|> token "(" *> mul <* token ")"
+  mul <- fmap (foldl1 Mul) <$> add `sepBy1` token "*"
+  add <- fmap (foldl1 Add) <$> var `sepBy1` token "+"
   return mul
 
 parseEarley :: [Token] -> Maybe Expr

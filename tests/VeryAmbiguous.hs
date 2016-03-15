@@ -17,7 +17,7 @@ tests = testGroup "Very ambiguous"
 
 veryAmbiguous :: Grammar r (Prod r Char Char ())
 veryAmbiguous = mdo
-  s <- rule $ () <$ symbol 'b'
+  s <- rule $ () <$ token 'b'
            <|> () <$ s <* s
            <|> () <$ s <* s <* s
            <?> 's'

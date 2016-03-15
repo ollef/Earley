@@ -5,7 +5,7 @@ import Text.Earley
 
 g :: Grammar r (Prod r Char Char ())
 g = mdo
-  s <- rule $ () <$ symbol 'b'
+  s <- rule $ () <$ token 'b'
            <|> () <$ s <* s
            <|> () <$ s <* s <* s
            <?> 's'

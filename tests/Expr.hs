@@ -43,14 +43,14 @@ instance Arbitrary Expr where
 
 expr :: Grammar r (Prod r String String Expr)
 expr = mdo
-  x1 <- rule $ Add <$> x1 <* namedSymbol "+" <*> x2
+  x1 <- rule $ Add <$> x1 <* namedToken "+" <*> x2
             <|> x2
             <?> "sum"
-  x2 <- rule $ Mul <$> x2 <* namedSymbol "*" <*> x3
+  x2 <- rule $ Mul <$> x2 <* namedToken "*" <*> x3
             <|> x3
             <?> "product"
   x3 <- rule $ Var <$> (satisfy ident <?> "identifier")
-            <|> namedSymbol "(" *> x1 <* namedSymbol ")"
+            <|> namedToken "(" *> x1 <* namedToken ")"
   return x1
   where
     ident (x:_) = isAlpha x
@@ -58,14 +58,14 @@ expr = mdo
 
 ambiguousExpr :: Grammar r (Prod r String String Expr)
 ambiguousExpr = mdo
-  x1 <- rule $ Add <$> x1 <* namedSymbol "+" <*> x1
+  x1 <- rule $ Add <$> x1 <* namedToken "+" <*> x1
             <|> x2
             <?> "sum"
-  x2 <- rule $ Mul <$> x2 <* namedSymbol "*" <*> x2
+  x2 <- rule $ Mul <$> x2 <* namedToken "*" <*> x2
             <|> x3
             <?> "product"
   x3 <- rule $ Var <$> (satisfy ident <?> "identifier")
-            <|> namedSymbol "(" *> x1 <* namedSymbol ")"
+            <|> namedToken "(" *> x1 <* namedToken ")"
   return x1
   where
     ident (x:_) = isAlpha x

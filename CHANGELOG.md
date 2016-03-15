@@ -1,6 +1,11 @@
 # Unreleased
 
 - Add `IsString Prod` instance
+- Change the signature of `Terminal` to take a function `a -> Maybe b`, and add a new operator `terminal`
+- Move `satisfy` to the `Derived` module
+- Add the `token`, `namedToken`, and `list` operators
+- Deprecate the `symbol`, `namedSymbol`, and `word` operators (use the above instead)
+- Add the `listLike` operator
 
 # 0.10.1.0
 

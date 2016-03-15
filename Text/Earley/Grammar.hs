@@ -2,7 +2,7 @@
 {-# LANGUAGE CPP, GADTs, RankNTypes #-}
 module Text.Earley.Grammar
   ( Prod(..)
-  , satisfy
+  , terminal
   , (<?>)
   , alts
   , Grammar(..)
@@ -44,7 +44,7 @@ infixr 0 <?>
 -- 'Functor', 'Applicative', and 'Alternative'.
 data Prod r e t a where
   -- Applicative.
-  Terminal    :: !(t -> Bool) -> !(Prod r e t (t -> b)) -> Prod r e t b
+  Terminal    :: !(t -> Maybe a) -> !(Prod r e t (a -> b)) -> Prod r e t b
   NonTerminal :: !(r e t a) -> !(Prod r e t (a -> b)) -> Prod r e t b
   Pure        :: a -> Prod r e t a
   -- Monoid/Alternative. We have to special-case 'many' (though it can be done
@@ -54,10 +54,10 @@ data Prod r e t a where
   -- Error reporting.
   Named       :: !(Prod r e t a) -> e -> Prod r e t a
 
--- | Match a token that satisfies the given predicate. Returns the matched token.
-{-# INLINE satisfy #-}
-satisfy :: (t -> Bool) -> Prod r e t t
-satisfy p = Terminal p $ Pure id
+-- | Match a token for which the given predicate returns @Just a@,
+-- and return the @a@.
+terminal :: (t -> Maybe a) -> Prod r e t a
+terminal p = Terminal p $ Pure id
 
 -- | A named production (used for reporting expected things).
 (<?>) :: Prod r e t a -> e -> Prod r e t a
@@ -106,17 +106,21 @@ instance Alternative (Prod r e t) where
   many (Alts [] _) = pure []
   many p           = Many p $ Pure id
   some p           = (:) <$> p <*> many p
-  
+
 -- | String literals can be interpreted as 'Terminal's
--- that match that string. 
--- 
+-- that match that string.
+--
 -- >>> :set -XOverloadedStrings
 -- >>> import Data.Text (Text)
 -- >>> let determiner = "the" <|> "a" <|> "an" :: Prod r e Text Text
--- 
+--
 instance (IsString t, Eq t, a ~ t) => IsString (Prod r e t a) where
- fromString s = satisfy (== fromString s) 
- {-# INLINE fromString #-}
+  fromString s = Terminal f $ Pure id
+    where
+      fs = fromString s
+      f t | t == fs = Just fs
+      f _ = Nothing
+  {-# INLINE fromString #-}
 
 -- | A context-free grammar.
 --

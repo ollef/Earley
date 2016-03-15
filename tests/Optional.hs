@@ -21,23 +21,23 @@ tests = testGroup "Optional"
       fullParses (parser optionalRule) "ab"
       @?= (,) [(Just 'a', 'b')] Report {position = 2, expected = "", unconsumed = ""}
   , HU.testCase "Without continuation Nothing" $
-      fullParses (parser $ return $ optional $ namedSymbol 'a') ""
+      fullParses (parser $ return $ optional $ namedToken 'a') ""
       @?= (,) [Nothing] Report {position = 0, expected = "a", unconsumed = ""}
   , HU.testCase "Without continuation Just" $
-      fullParses (parser $ return $ optional $ namedSymbol 'a') "a"
+      fullParses (parser $ return $ optional $ namedToken 'a') "a"
       @?= (,) [Just 'a'] Report {position = 1, expected = "", unconsumed = ""}
   , HU.testCase "Using rules without continuation Nothing" $
-      fullParses (parser $ rule $ optional $ namedSymbol 'a') ""
+      fullParses (parser $ rule $ optional $ namedToken 'a') ""
       @?= (,) [Nothing] Report {position = 0, expected = "a", unconsumed = ""}
   , HU.testCase "Using rules without continuation Just" $
-      fullParses (parser $ rule $ optional $ namedSymbol 'a') "a"
+      fullParses (parser $ rule $ optional $ namedToken 'a') "a"
       @?= (,) [Just 'a'] Report {position = 1, expected = "", unconsumed = ""}
   ]
 
 optional_ :: Prod r Char Char (Maybe Char, Char)
-optional_ = (,) <$> optional (namedSymbol 'a') <*> namedSymbol 'b'
+optional_ = (,) <$> optional (namedToken 'a') <*> namedToken 'b'
 
 optionalRule :: Grammar r (Prod r Char Char (Maybe Char, Char))
 optionalRule = mdo
-  test <- rule $ (,) <$> optional (namedSymbol 'a') <*> namedSymbol 'b'
+  test <- rule $ (,) <$> optional (namedToken 'a') <*> namedToken 'b'
   return test

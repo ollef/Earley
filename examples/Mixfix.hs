@@ -34,13 +34,13 @@ grammar = mdo
   ident     <- rule $ (V . pure . Just) <$> satisfy (not . (`HS.member` mixfixParts))
                    <?> "identifier"
   atom      <- rule $ ident
-                   <|> namedSymbol "(" *> expr <* namedSymbol ")"
+                   <|> namedToken "(" *> expr <* namedToken ")"
   normalApp <- rule $ atom
                    <|> App <$> atom <*> some atom
   expr      <- mixfixExpression table normalApp (App . V)
   return expr
   where
-    table = map (map $ first $ map $ fmap namedSymbol) identTable
+    table = map (map $ first $ map $ fmap namedToken) identTable
     mixfixParts = HS.fromList [s | xs <- identTable , (ys, _) <- xs
                                  , Just s <- ys]
                `mappend` HS.fromList ["(", ")"]

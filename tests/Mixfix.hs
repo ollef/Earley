@@ -31,10 +31,10 @@ data MixfixExpr = Ident (Holey String) | App (Holey String) [MixfixExpr]
 
 mixfixGrammar :: Grammar r (Prod r String String MixfixExpr)
 mixfixGrammar = mixfixExpression table
-                                 (Ident . pure . Just <$> namedSymbol "x")
+                                 (Ident . pure . Just <$> namedToken "x")
                                  App
   where
-    hident = map (fmap symbol)
+    hident = map (fmap token)
     table =
       [ [(hident ifthenelse, RightAssoc)]
       , [(hident prefix, RightAssoc)]

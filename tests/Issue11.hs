@@ -64,7 +64,7 @@ grammar a = mdo
     atomicExpr <- rule $ Var <$> satisfy (/= "+")
 
     expr <- mixfixExpression
-               [[([Just (symbol "+"), Nothing, Nothing], a)]]
+               [[([Just (token "+"), Nothing, Nothing], a)]]
                atomicExpr
                (\x y -> case (x,y) of
                   ([Just "+", Nothing, Nothing], [e1,e2]) -> Plus e1 e2

@@ -239,10 +239,10 @@ parse [] env = do
 parse (st:ss) env = case st of
   Final res -> parse ss env {results = unResults res : results env}
   State pr args pos scont -> case pr of
-    Terminal f p -> case safeHead $ input env of
-      Just t | f t -> parse ss env {next = State p (args . ($ t)) Previous scont
-                                         : next env}
-      _            -> parse ss env
+    Terminal f p -> case safeHead (input env) >>= f of
+      Just a -> parse ss env {next = State p (args . ($ a)) Previous scont
+                                   : next env}
+      Nothing -> parse ss env
     NonTerminal r p -> do
       rkref <- readSTRef $ ruleConts r
       ks    <- readSTRef rkref
