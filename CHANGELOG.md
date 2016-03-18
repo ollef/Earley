@@ -1,4 +1,4 @@
-# Unreleased
+# 0.11.0.0
 
 - Add `IsString Prod` instance
 - Change the signature of `Terminal` to take a function `a -> Maybe b`, and add a new operator `terminal`
