@@ -85,8 +85,11 @@ alts as p = case as >>= go of
   where
     go (Alts [] _)         = []
     go (Alts as' (Pure f)) = fmap f <$> as'
-    go (Named p' n)        = map (<?> n) $ go p'
+    go (Named p' n)        = mapHead (<?> n) $ go p'
     go a                   = [a]
+
+    mapHead _ [] = []
+    mapHead f (x:xs) = f x : xs
 
 instance Applicative (Prod r e t) where
   pure = Pure

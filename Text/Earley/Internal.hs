@@ -25,6 +25,7 @@ data Rule s r e t a = Rule
   }
 
 mkRule :: ProdR s r e t a -> ST s (Rule s r e t a)
+{-# INLINE mkRule #-}
 mkRule p = mdo
   c <- newSTRef =<< newSTRef mempty
   computeNullsRef <- newSTRef $ do
@@ -35,6 +36,7 @@ mkRule p = mdo
   return $ Rule (removeNulls p) c (Results $ join $ readSTRef computeNullsRef)
 
 prodNulls :: ProdR s r e t a -> Results s a
+{-# INLINE prodNulls #-}
 prodNulls prod = case prod of
   Terminal {}     -> empty
   NonTerminal r p -> ruleNulls r <**> prodNulls p
@@ -45,6 +47,7 @@ prodNulls prod = case prod of
 
 -- | Remove (some) nulls from a production
 removeNulls :: ProdR s r e t a -> ProdR s r e t a
+{-# INLINE removeNulls #-}
 removeNulls prod = case prod of
   Terminal {}      -> prod
   NonTerminal {}   -> prod
@@ -57,15 +60,25 @@ removeNulls prod = case prod of
 type ProdR s r e t a = Prod (Rule s r) e t a
 
 resetConts :: Rule s r e t a -> ST s ()
-resetConts r = writeSTRef (ruleConts r) =<< newSTRef mempty
+{-# INLINE resetConts #-}
+resetConts r = do
+  writeSTRef (ruleConts r) =<< newSTRef mempty
 
 -------------------------------------------------------------------------------
 -- * Delayed results
 -------------------------------------------------------------------------------
 newtype Results s a = Results { unResults :: ST s [a] }
-  deriving Functor
+
+instance Functor (Results s) where
+  {-# INLINE fmap #-}
+  fmap f (Results stas) = Results $ fmap f <$> stas
+
+reverseResults :: Results s a -> Results s a
+{-# INLINE reverseResults #-}
+reverseResults (Results stas) = Results $ fmap reverse stas
 
 lazyResults :: Results s a -> ST s (Results s a)
+{-# INLINE lazyResults #-}
 lazyResults (Results stas) = mdo
   resultsRef <- newSTRef $ do
     as <- stas
@@ -74,15 +87,21 @@ lazyResults (Results stas) = mdo
   return $ Results $ join $ readSTRef resultsRef
 
 instance Applicative (Results s) where
+  {-# INLINE pure #-}
   pure = Results . pure . pure
+  {-# INLINE (<*>) #-}
   Results sfs <*> Results sxs = Results $ (<*>) <$> sfs <*> sxs
 
 instance Alternative (Results s) where
+  {-# INLINE empty #-}
   empty = Results $ pure []
+  {-# INLINE (<|>) #-}
   Results sxs <|> Results sys = Results $ (<|>) <$> sxs <*> sys
 
 instance Monoid (Results s a) where
+  {-# INLINE mempty #-}
   mempty = empty
+  {-# INLINE mappend #-}
   mappend = (<|>)
 
 -------------------------------------------------------------------------------
@@ -117,24 +136,29 @@ data Conts s r e t a c = Conts
   }
 
 newConts :: STRef s [Cont s r e t a c] -> ST s (Conts s r e t a c)
+{-# INLINE newConts #-}
 newConts r = Conts r <$> newSTRef Nothing
 
 contraMapCont :: Results s (b -> a) -> Cont s r e t a c -> Cont s r e t b c
-contraMapCont f (Cont g p args cs) = Cont (flip (.) <$> f <*> g) p args cs
-contraMapCont f (FinalCont args)   = FinalCont (flip (.) <$> f <*> args)
+{-# INLINE contraMapCont #-}
+contraMapCont f (Cont pre p post cs) = Cont (flip (.) <$> f <*> pre) p post cs
+contraMapCont f (FinalCont res) = FinalCont (flip (.) <$> f <*> res)
 
 contToState :: BirthPos -> Results s a -> Cont s r e t a c -> State s r e t c
-contToState pos r (Cont g p args cs) = State p ((\a f h i -> h $ i $ f a) <$> r <*> g <*> args) pos cs
-contToState _   r (FinalCont args)   = Final $ r <**> args
+{-# INLINE contToState #-}
+contToState pos r (Cont pre p post cs) = State p ((\a f h i -> h $ i $ f a) <$> r <*> pre <*> post) pos cs
+contToState _   r (FinalCont res) = Final $ r <**> res
 
 -- | Strings of non-ambiguous continuations can be optimised by removing
 -- indirections.
 simplifyCont :: Conts s r e t b a -> ST s [Cont s r e t b a]
+{-# INLINE simplifyCont #-}
 simplifyCont Conts {conts = cont} = readSTRef cont >>= go False
   where
-    go !_ [Cont g (Pure f) args cont'] = do
+    go !_ [Cont pre (Pure f) post cont'] = do
       ks' <- simplifyCont cont'
-      res <- lazyResults $ (\a b -> b . f . a) <$> g <*> args
+      -- res <- lazyResults $ (\a b -> b . f . a) <$> g <*> post
+      let res = (\a b -> b . f . a) <$> pre <*> post
       go True $ map (contraMapCont res) ks'
     go True ks = do
       writeSTRef cont ks
@@ -146,6 +170,7 @@ simplifyCont Conts {conts = cont} = readSTRef cont >>= go False
 -------------------------------------------------------------------------------
 -- | Given a grammar, construct an initial state.
 initialState :: ProdR s a e t a -> ST s (State s a e t a)
+{-# INLINE initialState #-}
 initialState p = State p (pure id) Previous <$> (newConts =<< newSTRef [FinalCont $ pure id])
 
 -------------------------------------------------------------------------------
@@ -176,8 +201,8 @@ data Result s e i a
     -- continuation.
   deriving Functor
 
-{-# INLINE safeHead #-}
 safeHead :: ListLike i t => i -> Maybe t
+{-# INLINE safeHead #-}
 safeHead ts
   | ListLike.null ts = Nothing
   | otherwise        = Just $ ListLike.head ts
@@ -197,8 +222,8 @@ data ParseEnv s e i t a = ParseEnv
     -- ^ The input string
   }
 
-{-# INLINE emptyParseEnv #-}
 emptyParseEnv :: i -> ParseEnv s e i t a
+{-# INLINE emptyParseEnv #-}
 emptyParseEnv i = ParseEnv
   { results = mempty
   , next    = mempty
@@ -225,32 +250,32 @@ parse [] env@ParseEnv {results = [], next = []} = do
     }
 parse [] env@ParseEnv {results = []} = do
   reset env
-  parse (next env)
+  parse (reverse $ next env)
         (emptyParseEnv $ ListLike.tail $ input env) {curPos = curPos env + 1}
 parse [] env = do
   reset env
   return $ Parsed (concat <$> sequence (results env)) (curPos env) (input env)
-         $ parse [] env {results = [], reset = return ()}
+         $ parse [] env {reset = return (), results = []}
 parse (st:ss) env = case st of
   Final res -> parse ss env {results = unResults res : results env}
-  State pr args pos scont -> case pr of
+  State pr res pos scont -> case pr of
     Terminal f p -> case safeHead (input env) >>= f of
-      Just a -> parse ss env {next = State p ((\g h -> g $ h a) <$> args) Previous scont
+      Just a -> parse ss env {next = State p ((\g h -> g $ h a) <$> res) Previous scont
                                    : next env}
       Nothing -> parse ss env
     NonTerminal r p -> do
       rkref <- readSTRef $ ruleConts r
       ks    <- readSTRef rkref
-      writeSTRef rkref (Cont (pure id) p args scont : ks)
+      writeSTRef rkref (Cont (pure id) p res scont : ks)
       ns    <- unResults $ ruleNulls r
       let addNullState
             | null ns = id
             | otherwise = (:)
-                        $ State p ((\f a h -> f (h a)) <$> args <*> Results (pure ns)) pos scont
+                        $ State p ((\f a h -> f (h a)) <$> res <*> Results (pure ns)) pos scont
       if null ks then do -- The rule has not been expanded at this position.
         st' <- State (ruleProd r) (pure id) Current <$> newConts rkref
         parse (addNullState $ st' : ss)
-              env {reset = resetConts r >> reset env}
+              env {reset = modifySTRef rkref reverse >> resetConts r >> reset env}
       else -- The rule has already been expanded at this position.
         parse (addNullState ss) env
     Pure a
@@ -260,36 +285,37 @@ parse (st:ss) env = case st of
       | otherwise -> do
         let argsRef = contsArgs scont
         masref  <- readSTRef argsRef
-        let args' = ($ a) <$> args
+        let res' = ($ a) <$> res
         case masref of
           Just asref -> do -- The continuation has already been followed at this position.
-            modifySTRef asref $ mappend args'
+            modifySTRef asref $ mappend res'
             parse ss env
           Nothing    -> do -- It hasn't.
-            asref <- newSTRef args'
-            writeSTRef argsRef $ Just asref
+            res'Ref <- newSTRef res'
+            writeSTRef argsRef $ Just res'Ref
             ks  <- simplifyCont scont
-            res <- lazyResults $ Results $ join $ unResults <$> readSTRef asref
-            let kstates = map (contToState pos res) ks
-            parse (kstates ++ ss)
-                  env {reset = writeSTRef argsRef Nothing >> reset env}
+            -- finalResults <- lazyResults $ Results $ join $ unResults <$> readSTRef res'Ref
+            let finalResults = Results $ join $ unResults <$> readSTRef res'Ref
+            parse (map (contToState pos finalResults) ks ++ ss)
+                  env {reset = modifySTRef res'Ref reverseResults >> writeSTRef argsRef Nothing >> reset env}
     Alts as (Pure f) -> do
-      args' <- lazyResults $ (. f) <$> args
-      parse ([State a args' pos scont | a <- as] ++ ss) env
+      -- res' <- lazyResults $ (. f) <$> res
+      let res' = (. f) <$> res
+      parse ([State a res' pos scont | a <- as] ++ ss) env
     Alts as p -> do
-      scont' <- newConts =<< newSTRef [Cont (pure id) p args scont]
+      scont' <- newConts =<< newSTRef [Cont (pure id) p res scont]
       parse ([State a (pure id) Previous scont' | a <- as] ++ ss) env
     Many p q -> mdo
       r <- mkRule $ pure [] <|> (:) <$> p <*> NonTerminal r (Pure id)
-      parse (State (NonTerminal r q) args pos scont : ss) env
-    Named pr' n -> parse (State pr' args pos scont : ss)
+      parse (State (NonTerminal r q) res pos scont : ss) env
+    Named pr' n -> parse (State pr' res pos scont : ss)
                          env {names = n : names env}
 
-{-# INLINE parser #-}
 -- | Create a parser from the given grammar.
 parser :: ListLike i t
        => (forall r. Grammar r (Prod r e t a))
        -> ST s (i -> ST s (Result s e i a))
+{-# INLINE parser #-}
 parser g = do
   let nt x = NonTerminal x $ pure id
   s <- initialState =<< runGrammar (fmap nt . mkRule) g
@@ -301,6 +327,7 @@ parser g = do
 allParses :: (forall s. ST s (i -> ST s (Result s e i a)))
           -> i
           -> ([(a, Int)], Report e i)
+{-# INLINE allParses #-}
 allParses p i = runST $ p >>= ($ i) >>= go
   where
     go :: Result s e i a -> ST s ([(a, Int)], Report e i)
@@ -310,13 +337,13 @@ allParses p i = runST $ p >>= ($ i) >>= go
         as <- mas
         fmap (first (zip as (repeat cpos) ++)) $ go =<< k
 
-{-# INLINE fullParses #-}
 -- | Return all parses that reached the end of the input from the result of a
 --   given parser.
 fullParses :: ListLike i t
            => (forall s. ST s (i -> ST s (Result s e i a)))
            -> i
            -> ([a], Report e i)
+{-# INLINE fullParses #-}
 fullParses p i = runST $ p >>= ($ i) >>= go
   where
     go :: ListLike i t => Result s e i a -> ST s ([a], Report e i)
@@ -328,7 +355,6 @@ fullParses p i = runST $ p >>= ($ i) >>= go
           fmap (first (as ++)) $ go =<< k
         | otherwise -> go =<< k
 
-{-# INLINE report #-}
 -- | See e.g. how far the parser is able to parse the input string before it
 -- fails.  This can be much faster than getting the parse results for highly
 -- ambiguous grammars.
@@ -336,6 +362,7 @@ report :: ListLike i t
        => (forall s. ST s (i -> ST s (Result s e i a)))
        -> i
        -> Report e i
+{-# INLINE report #-}
 report p i = runST $ p >>= ($ i) >>= go
   where
     go :: ListLike i t => Result s e i a -> ST s (Report e i)

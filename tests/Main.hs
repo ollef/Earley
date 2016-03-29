@@ -8,6 +8,7 @@ import qualified Issue11
 import qualified Issue14
 import qualified Mixfix
 import qualified Optional
+import qualified Order
 import qualified ReversedWords
 import qualified VeryAmbiguous
 
@@ -20,6 +21,7 @@ main = defaultMain $ testGroup "Tests"
   , Issue14.tests
   , Mixfix.tests
   , Optional.tests
+  , Order.tests
   , ReversedWords.tests
   , VeryAmbiguous.tests
   ]
