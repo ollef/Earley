@@ -111,6 +111,11 @@ benchmark bench
   build-depends:       base, deepseq, criterion >=1.1, parsec >=3.1, ListLike
   default-language:    Haskell2010
   ghc-options:         -Wall
+  other-modules:       Text.Earley,
+                       Text.Earley.Derived,
+                       Text.Earley.Grammar,
+                       Text.Earley.Internal,
+                       Text.Earley.Parser
 
 test-suite tests
   type:                exitcode-stdio-1.0
@@ -119,3 +124,12 @@ test-suite tests
   hs-source-dirs:      tests
   default-language:    Haskell2010
   build-depends:       base, Earley, tasty >=0.10, tasty-quickcheck >=0.8, tasty-hunit >= 0.9
+  other-modules:       Empty,
+                       Expr,
+                       InlineAlts,
+                       Issue11,
+                       Issue14,
+                       Mixfix,
+                       Optional,
+                       ReversedWords,
+                       VeryAmbiguous
