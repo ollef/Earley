@@ -1,3 +1,7 @@
+# 0.11.0.1
+
+- Add missing modules to Cabal file
+
 # 0.11.0.0
 
 - Add `IsString Prod` instance
