@@ -1,5 +1,4 @@
 {-# LANGUAGE RecursiveDo #-}
-module Testa where
 import Control.Applicative
 import Text.Earley
 
