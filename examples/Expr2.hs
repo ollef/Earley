@@ -16,13 +16,13 @@ grammar = mdo
 
   whitespace <- rule $ many $ satisfy isSpace
 
-  let token :: Prod r String Char a -> Prod r String Char a
-      token p = whitespace *> p
+  let tok :: Prod r String Char a -> Prod r String Char a
+      tok p   = whitespace *> p
 
-      sym x   = token $ token x <?> [x]
+      sym x   = tok $ token x <?> [x]
 
-      ident   = token $ (:) <$> satisfy isAlpha <*> many (satisfy isAlphaNum) <?> "identifier"
-      num     = token $ some (satisfy isDigit) <?> "number"
+      ident   = tok $ (:) <$> satisfy isAlpha <*> many (satisfy isAlphaNum) <?> "identifier"
+      num     = tok $ some (satisfy isDigit) <?> "number"
 
   expr0 <- rule
      $ (Lit . read)  <$> num
