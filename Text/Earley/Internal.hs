@@ -75,7 +75,7 @@ lazyResults (Results stas) = mdo
 
 instance Applicative (Results s) where
   pure = Results . pure . pure
-  Results sfs <*> Results sxs = Results $ (<*>) <$> sfs <*> sxs
+  Results sfs <*> Results sxs = Results $ (<**>) <$> sxs <*> sfs
 
 instance Alternative (Results s) where
   empty = Results $ pure []
@@ -183,7 +183,7 @@ safeHead ts
   | otherwise        = Just $ ListLike.head ts
 
 data ParseEnv s e i t a = ParseEnv
-  { results :: ![ST s [a]]
+  { results :: !(Maybe (Results s a))
     -- ^ Results ready to be reported (when this position has been processed)
   , next    :: ![State s a e t a]
     -- ^ States to process at the next position
@@ -216,37 +216,36 @@ parse :: ListLike i t
       => [State s a e t a] -- ^ States to process at this position
       -> ParseEnv s e i t a
       -> ST s (Result s e i a)
-parse [] env@ParseEnv {results = [], next = []} = do
+parse [] env@ParseEnv {results = Nothing, next = []} = do
   reset env
   return $ Ended Report
     { position   = curPos env
     , expected   = names env
     , unconsumed = input env
     }
-parse [] env@ParseEnv {results = []} = do
+parse [] env@ParseEnv {results = Nothing} = do
   reset env
   parse (next env)
         (emptyParseEnv $ ListLike.tail $ input env) {curPos = curPos env + 1}
-parse [] env = do
+parse [] env@ParseEnv {results = Just res} = do
   reset env
-  return $ Parsed (concat <$> sequence (results env)) (curPos env) (input env)
-         $ parse [] env {results = [], reset = return ()}
+  return $ Parsed (unResults res) (curPos env) (input env)
+         $ parse [] env {results = Nothing, reset = return ()}
 parse (st:ss) env = case st of
-  Final res -> parse ss env {results = unResults res : results env}
+  Final res -> parse ss env {results = results env `mappend` Just res}
   State pr args pos scont -> case pr of
     Terminal f p -> case safeHead (input env) >>= f of
-      Just a -> parse ss env {next = State p ((\g h -> g $ h a) <$> args) Previous scont
-                                   : next env}
+      Just a -> parse ss env {next = next env ++ [State p ((\g h -> g $ h a) <$> args) Previous scont]}
       Nothing -> parse ss env
     NonTerminal r p -> do
       rkref <- readSTRef $ ruleConts r
-      ks    <- readSTRef rkref
-      writeSTRef rkref (Cont (pure id) p args scont : ks)
-      ns    <- unResults $ ruleNulls r
+      ks <- readSTRef rkref
+      writeSTRef rkref (ks ++ [Cont (pure id) p args scont])
+      ns <- unResults $ ruleNulls r
       let addNullState
             | null ns = id
             | otherwise = (:)
-                        $ State p ((\f a h -> f (h a)) <$> args <*> Results (pure ns)) pos scont
+                        $ State p ((\a f h -> f $ h a) <$> Results (pure ns) <*> args) pos scont
       if null ks then do -- The rule has not been expanded at this position.
         st' <- State (ruleProd r) (pure id) Current <$> newConts rkref
         parse (addNullState $ st' : ss)
@@ -258,21 +257,20 @@ parse (st:ss) env = case st of
       -- continuations are handled separately.
       | pos == Current -> parse ss env
       | otherwise -> do
-        let argsRef = contsArgs scont
-        masref  <- readSTRef argsRef
+        margsRef <- readSTRef $ contsArgs scont
         let args' = ($ a) <$> args
-        case masref of
-          Just asref -> do -- The continuation has already been followed at this position.
-            modifySTRef asref $ mappend args'
+        case margsRef of
+          Just argsRef -> do -- The continuation has already been followed at this position.
+            modifySTRef argsRef (`mappend` args')
             parse ss env
-          Nothing    -> do -- It hasn't.
-            asref <- newSTRef args'
-            writeSTRef argsRef $ Just asref
-            ks  <- simplifyCont scont
-            res <- lazyResults $ Results $ join $ unResults <$> readSTRef asref
+          Nothing -> do -- It hasn't.
+            argsRef <- newSTRef args'
+            writeSTRef (contsArgs scont) $ Just argsRef
+            ks <- simplifyCont scont
+            res <- lazyResults $ Results $ join $ unResults <$> readSTRef argsRef
             let kstates = map (contToState pos res) ks
             parse (kstates ++ ss)
-                  env {reset = writeSTRef argsRef Nothing >> reset env}
+                  env {reset = writeSTRef (contsArgs scont) Nothing >> reset env}
     Alts as (Pure f) -> do
       args' <- lazyResults $ (. f) <$> args
       parse ([State a args' pos scont | a <- as] ++ ss) env
@@ -283,7 +281,7 @@ parse (st:ss) env = case st of
       r <- mkRule $ pure [] <|> (:) <$> p <*> NonTerminal r (Pure id)
       parse (State (NonTerminal r q) args pos scont : ss) env
     Named pr' n -> parse (State pr' args pos scont : ss)
-                         env {names = n : names env}
+                         env {names = names env ++ [n]}
 
 {-# INLINE parser #-}
 -- | Create a parser from the given grammar.
@@ -292,7 +290,8 @@ parser :: ListLike i t
        -> ST s (i -> ST s (Result s e i a))
 parser g = do
   let nt x = NonTerminal x $ pure id
-  s <- initialState =<< runGrammar (fmap nt . mkRule) g
+  p <- runGrammar (fmap nt . mkRule) g
+  s <- State p (pure id) Previous <$> (newConts =<< newSTRef [FinalCont $ pure id])
   return $ parse [s] . emptyParseEnv
 
 -- | Return all parses from the result of a given parser. The result may
