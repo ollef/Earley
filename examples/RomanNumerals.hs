@@ -11,20 +11,20 @@ numeral str n = n <$ list str
 romanNumeralsGrammar :: Grammar r (Prod r String Char Int)
 romanNumeralsGrammar = mdo
 
-  thousands <- rule 
-    $ pure 0 
+  thousands <- rule
+    $ pure 0
     <|> numeral "M" 1000 <**> fmap (+) thousands
 
-  le300 <- rule 
-    $ pure 0 
-    <|> numeral "C" 100 
-    <|> numeral "CC" 200 
+  le300 <- rule
+    $ pure 0
+    <|> numeral "C" 100
+    <|> numeral "CC" 200
     <|> numeral "CCC" 300
 
-  hundreds <- rule 
-    $ le300 
-    <|> numeral "CD" 400 
-    <|> numeral "D" 500 <**> fmap (+) le300 
+  hundreds <- rule
+    $ le300
+    <|> numeral "CD" 400
+    <|> numeral "D" 500 <**> fmap (+) le300
     <|> numeral "CM" 900
 
   le30 <- rule
@@ -52,11 +52,11 @@ romanNumeralsGrammar = mdo
     <|> numeral "IX" 9
 
   return
-    $ thousands 
-    <**> fmap (+) hundreds 
-    <**> fmap (+) tens 
+    $ thousands
+    <**> fmap (+) hundreds
+    <**> fmap (+) tens
     <**> fmap (+) units
-  
+
 
 main :: IO ()
 main = do
