@@ -13,10 +13,6 @@ import Text.Earley.Grammar
 import Data.Monoid
 #endif
 
--- import Debug.Trace
-trace :: a -> b -> b
-trace _ y = y
-
 -------------------------------------------------------------------------------
 -- * Concrete rules and productions
 -------------------------------------------------------------------------------
@@ -200,24 +196,24 @@ emptyGenerationEnv ts = GenerationEnv
 generate :: [State s a e t a] -- ^ States to process at this position
          -> GenerationEnv s e t a
          -> ST s (Result s t a)
-generate [] env@GenerationEnv {results = [], next = []} = trace "p1" $ do
+generate [] env@GenerationEnv {results = [], next = []} = do
   reset env
   return Ended
-generate [] env@GenerationEnv {results = []} = trace "p2" $ do
+generate [] env@GenerationEnv {results = []} = do
   reset env
   generate (next env) $ emptyGenerationEnv $ tokens env
-generate [] env = trace "p3" $ do
+generate [] env = do
   reset env
   return $ Generated (concat <$> sequence (results env))
          $ generate [] env {results = [], reset = return ()}
-generate (st:ss) env = trace "p4" $ case st of
-  Final res -> trace "final" $ generate ss env {results = unResults res : results env}
+generate (st:ss) env = case st of
+  Final res -> generate ss env {results = unResults res : results env}
   State pr args pos scont -> case pr of
-    Terminal f p -> trace "terminal" $ generate ss env
+    Terminal f p -> generate ss env
       { next = [State p (\g -> Results (pure $ map (\(t, a) -> (g a, [t])) xs) >>= args) Previous scont | xs <- [catMaybes $ map (\t -> (,) t <$> f t) $ tokens env], not $ null xs]
-            ++ next env 
+            ++ next env
       }
-    NonTerminal r p -> trace "nonterminal" $ do
+    NonTerminal r p -> do
       rkref <- readSTRef $ ruleConts r
       ks    <- readSTRef rkref
       writeSTRef rkref (Cont pure p args scont : ks)
@@ -235,8 +231,8 @@ generate (st:ss) env = trace "p4" $ case st of
     Pure a
       -- Skip following continuations that stem from the current position; such
       -- continuations are handled separately.
-      | pos == Current -> trace "pure 1" $ generate ss env
-      | otherwise -> trace "pure 2" $ do
+      | pos == Current -> generate ss env
+      | otherwise -> do
         let argsRef = contsArgs scont
         masref  <- readSTRef argsRef
         case masref of
@@ -251,11 +247,11 @@ generate (st:ss) env = trace "p4" $ case st of
             let kstates = map (contToState pos res) ks
             generate (kstates ++ ss)
                   env {reset = writeSTRef argsRef Nothing >> reset env}
-    Alts as (Pure f) -> trace "alts 1" $ do
+    Alts as (Pure f) -> do
       let args' = args . f
           sts   = [State a args' pos scont | a <- as]
       generate (sts ++ ss) env
-    Alts as p -> trace "alts 2" $ do
+    Alts as p -> do
       scont' <- newConts =<< newSTRef [Cont pure p args scont]
       let sts = [State a pure Previous scont' | a <- as]
       generate (sts ++ ss) env
