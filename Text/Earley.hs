@@ -7,11 +7,14 @@ module Text.Earley
   , -- * Deprecated operators
     symbol, namedSymbol, word
   , -- * Parsing
-    Report(..), Result(..), parser, allParses, fullParses
-    -- * Recognition
-  , report
+    Report(..), Parser.Result(..), Parser, parser, allParses, fullParses
+  , -- * Recognition
+    report
+  , -- * Language generation
+    Generator, generator, language, upTo, exactly
   )
   where
-import Text.Earley.Grammar
 import Text.Earley.Derived
-import Text.Earley.Parser
+import Text.Earley.Generator
+import Text.Earley.Grammar
+import Text.Earley.Parser as Parser

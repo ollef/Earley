@@ -5,7 +5,7 @@ import Control.Monad
 import Control.Monad.ST.Lazy
 import Data.ListLike(ListLike)
 import qualified Data.ListLike as ListLike
-import Data.Maybe(catMaybes)
+import Data.Maybe(mapMaybe)
 import Data.STRef.Lazy
 import qualified Test.QuickCheck as QC
 import Text.Earley.Grammar
@@ -157,7 +157,7 @@ initialState p = State p pure Previous <$> (newConts =<< newSTRef [FinalCont pur
 -------------------------------------------------------------------------------
 -- | The result of a generator.
 data Result s t a
-  = Ended
+  = Ended (ST s [(a, [t])])
     -- ^ The generator ended.
   | Generated (ST s [(a, [t])]) (ST s (Result s t a))
     -- ^ The generator produced a number of @a@s.  These are given as a
@@ -196,21 +196,18 @@ emptyGenerationEnv ts = GenerationEnv
 generate :: [State s a e t a] -- ^ States to process at this position
          -> GenerationEnv s e t a
          -> ST s (Result s t a)
-generate [] env@GenerationEnv {results = [], next = []} = do
+generate [] env@GenerationEnv {next = []} = do
   reset env
-  return Ended
-generate [] env@GenerationEnv {results = []} = do
-  reset env
-  generate (next env) $ emptyGenerationEnv $ tokens env
+  return $ Ended $ concat <$> sequence (results env)
 generate [] env = do
   reset env
   return $ Generated (concat <$> sequence (results env))
-         $ generate [] env {results = [], reset = return ()}
+         $ generate (next env) $ emptyGenerationEnv $ tokens env
 generate (st:ss) env = case st of
   Final res -> generate ss env {results = unResults res : results env}
   State pr args pos scont -> case pr of
     Terminal f p -> generate ss env
-      { next = [State p (\g -> Results (pure $ map (\(t, a) -> (g a, [t])) xs) >>= args) Previous scont | xs <- [catMaybes $ map (\t -> (,) t <$> f t) $ tokens env], not $ null xs]
+      { next = [State p (\g -> Results (pure $ map (\(t, a) -> (g a, [t])) xs) >>= args) Previous scont | xs <- [mapMaybe (\t -> (,) t <$> f t) $ tokens env], not $ null xs]
             ++ next env
       }
     NonTerminal r p -> do
@@ -260,30 +257,86 @@ generate (st:ss) env = case st of
       generate (State (NonTerminal r q) args pos scont : ss) env
     Named pr' _ -> generate (State pr' args pos scont : ss) env
 
+type Generator t a = forall s. ST s (Result s t a)
+
+{-# INLINE generator #-}
+-- | Create a language generator for given grammar and list of allowed tokens.
+generator
+  :: (forall r. Grammar r (Prod r e t a))
+  -> [t]
+  -> Generator t a
+generator g ts = do
+  let nt x = NonTerminal x $ pure id
+  s <- initialState =<< runGrammar (fmap nt . mkRule) g
+  generate [s] $ emptyGenerationEnv ts
 
 {-# INLINE language #-}
--- | Generate the language for a given grammar.
-language :: (forall r. Grammar r (Prod r e t a)) -> [t] -> [(a, [t])]
-language grammar ts = runST $ generator grammar >>= ($ ts) >>= go
+-- | Run a generator, returning all members of the language.
+--
+-- The members are returned as parse results paired with the list of tokens
+-- used to produce the result.
+language
+  :: Generator t a
+  -> [(a, [t])]
+language gen = runST $ gen >>= go
   where
     go :: Result s t a -> ST s [(a, [t])]
     go r = case r of
-      Ended -> return []
+      Ended mas -> mas
       Generated mas k -> do
         as <- mas
         (as ++) <$> (go =<< k)
 
-    generator :: (forall r. Grammar r (Prod r e t a))
-              -> ST s ([t] -> ST s (Result s t a))
-    generator g = do
-      let nt x = NonTerminal x $ pure id
-      s <- initialState =<< runGrammar (fmap nt . mkRule) g
-      return $ generate [s] . emptyGenerationEnv
+{-# INLINE upTo #-}
+-- | @upTo n gen@ runs the generator @gen@, returning all members of the
+-- language that are of length less than or equal to @n@.
+--
+-- The members are returned as parse results paired with the list of tokens
+-- used to produce the result.
+upTo
+  :: Int
+  -> Generator t a
+  -> [(a, [t])]
+upTo len gen = runST $ gen >>= go 0
+  where
+    go :: Int -> Result s t a -> ST s [(a, [t])]
+    go curLen r | curLen <= len = case r of
+      Ended mas -> mas
+      Generated mas k -> do
+        as <- mas
+        (as ++) <$> (go (curLen + 1) =<< k)
+    go _ _ = return []
+
+{-# INLINE exactly #-}
+-- | @exactly n gen@ runs the generator @gen@, returning all members of the
+-- language that are of length equal to @n@.
+--
+-- The members are returned as parse results paired with the list of tokens
+-- used to produce the result.
+exactly
+  :: Int
+  -> Generator t a
+  -> [(a, [t])]
+exactly len _ | len < 0 = []
+exactly len gen = runST $ gen >>= go 0
+  where
+    go :: Int -> Result s t a -> ST s [(a, [t])]
+    go !curLen r = case r of
+      Ended mas
+        | curLen == len -> mas
+        | otherwise -> return []
+      Generated mas k
+        | curLen == len -> mas
+        | otherwise -> go (curLen + 1) =<< k
 
 -------------------------------------------------------------------------------
 -- * Arbitrary members of a grammar
 -------------------------------------------------------------------------------
+-- | Generate an arbitrary member of a grammar given a list of allowed tokens.
+--
+-- The members are returned as parse results paired with the list of tokens
+-- used to produce the result.
 arbitrary :: (forall r. Grammar r (Prod r e t a)) -> [t] -> QC.Gen (a, [t])
 arbitrary grammar ts = QC.sized $ \n -> QC.elements (take (1 `max` n) xs)
   where
-    xs = language grammar ts
+    xs = language $ generator grammar ts

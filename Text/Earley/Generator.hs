@@ -1,5 +1,10 @@
 module Text.Earley.Generator
-(
-) where
+  ( Result(..)
+  , Generator
+  , language
+  , upTo
+  , exactly
+  , arbitrary
+  ) where
 import Text.Earley.Generator.Internal
 
