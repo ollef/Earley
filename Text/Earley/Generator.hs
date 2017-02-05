@@ -4,7 +4,6 @@ module Text.Earley.Generator
   , language
   , upTo
   , exactly
-  , arbitrary
   ) where
 import Text.Earley.Generator.Internal
 

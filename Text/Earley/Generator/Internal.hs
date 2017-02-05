@@ -7,7 +7,6 @@ import Data.ListLike(ListLike)
 import qualified Data.ListLike as ListLike
 import Data.Maybe(mapMaybe)
 import Data.STRef.Lazy
-import qualified Test.QuickCheck as QC
 import Text.Earley.Grammar
 #if !MIN_VERSION_base(4,8,0)
 import Data.Monoid
@@ -328,15 +327,3 @@ exactly len gen = runST $ gen >>= go 0
       Generated mas k
         | curLen == len -> mas
         | otherwise -> go (curLen + 1) =<< k
-
--------------------------------------------------------------------------------
--- * Arbitrary members of a grammar
--------------------------------------------------------------------------------
--- | Generate an arbitrary member of a grammar given a list of allowed tokens.
---
--- The members are returned as parse results paired with the list of tokens
--- used to produce the result.
-arbitrary :: (forall r. Grammar r (Prod r e t a)) -> [t] -> QC.Gen (a, [t])
-arbitrary grammar ts = QC.sized $ \n -> QC.elements (take (1 `max` n) xs)
-  where
-    xs = language $ generator grammar ts
