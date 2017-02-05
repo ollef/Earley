@@ -1,5 +1,6 @@
 # Unreleased
 
+- Change (simplify) the type returned by `parser`, introducing  a `Parser` type synonym for it, and change the signature of `allParses`, `fullParses`, and `report` to accept a `Parser`
 - The `Text.Earley.Internal` module is now `Text.Earley.Parser.Internal`
 
 # 0.11.0.1

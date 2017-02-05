@@ -1,7 +1,7 @@
 {-# LANGUAGE CPP, BangPatterns, DeriveFunctor, GADTs, Rank2Types, RecursiveDo #-}
 -- | This module exposes the internals of the package: its API may change
 -- independently of the PVP-compliant version number.
-module Text.Earley.Internal where
+module Text.Earley.Parser.Internal where
 import Control.Applicative
 import Control.Arrow
 import Control.Monad
@@ -291,23 +291,27 @@ parse (st:ss) env = case st of
     Named pr' n -> parse (State pr' args pos scont : ss)
                          env {names = n : names env}
 
+type Parser e i a = forall s. i -> ST s (Result s e i a)
+
 {-# INLINE parser #-}
 -- | Create a parser from the given grammar.
-parser :: ListLike i t
-       => (forall r. Grammar r (Prod r e t a))
-       -> ST s (i -> ST s (Result s e i a))
-parser g = do
+parser
+  :: ListLike i t
+  => (forall r. Grammar r (Prod r e t a))
+  -> Parser e i a
+parser g i = do
   let nt x = NonTerminal x $ pure id
   s <- initialState =<< runGrammar (fmap nt . mkRule) g
-  return $ parse [s] . emptyParseEnv
+  parse [s] $ emptyParseEnv i
 
 -- | Return all parses from the result of a given parser. The result may
 -- contain partial parses. The 'Int's are the position at which a result was
 -- produced.
-allParses :: (forall s. ST s (i -> ST s (Result s e i a)))
-          -> i
-          -> ([(a, Int)], Report e i)
-allParses p i = runST $ p >>= ($ i) >>= go
+allParses
+  :: Parser e i a
+  -> i
+  -> ([(a, Int)], Report e i)
+allParses p i = runST $ p i >>= go
   where
     go :: Result s e i a -> ST s ([(a, Int)], Report e i)
     go r = case r of
@@ -319,11 +323,12 @@ allParses p i = runST $ p >>= ($ i) >>= go
 {-# INLINE fullParses #-}
 -- | Return all parses that reached the end of the input from the result of a
 --   given parser.
-fullParses :: ListLike i t
-           => (forall s. ST s (i -> ST s (Result s e i a)))
-           -> i
-           -> ([a], Report e i)
-fullParses p i = runST $ p >>= ($ i) >>= go
+fullParses
+  :: ListLike i t
+  => Parser e i a
+  -> i
+  -> ([a], Report e i)
+fullParses p i = runST $ p i >>= go
   where
     go :: ListLike i t => Result s e i a -> ST s ([a], Report e i)
     go r = case r of
@@ -338,13 +343,13 @@ fullParses p i = runST $ p >>= ($ i) >>= go
 -- | See e.g. how far the parser is able to parse the input string before it
 -- fails.  This can be much faster than getting the parse results for highly
 -- ambiguous grammars.
-report :: ListLike i t
-       => (forall s. ST s (i -> ST s (Result s e i a)))
-       -> i
-       -> Report e i
-report p i = runST $ p >>= ($ i) >>= go
+report
+  :: Parser e i a
+  -> i
+  -> Report e i
+report p i = runST $ p i >>= go
   where
-    go :: ListLike i t => Result s e i a -> ST s (Report e i)
+    go :: Result s e i a -> ST s (Report e i)
     go r = case r of
       Ended rep      -> return rep
       Parsed _ _ _ k -> go =<< k
