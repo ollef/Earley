@@ -32,7 +32,8 @@ library
   exposed-modules:
                        Text.Earley,
                        Text.Earley.Derived,
-                       Text.Earley.Language,
+                       Text.Earley.Generator,
+                       Text.Earley.Generator.Internal,
                        Text.Earley.Grammar,
                        Text.Earley.Mixfix,
                        Text.Earley.Parser,

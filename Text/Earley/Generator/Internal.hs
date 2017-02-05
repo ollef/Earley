@@ -1,5 +1,5 @@
 {-# LANGUAGE CPP, BangPatterns, DeriveFunctor, GADTs, Rank2Types, RecursiveDo #-}
-module Text.Earley.Language where
+module Text.Earley.Generator.Internal where
 import Control.Applicative
 import Control.Monad
 import Control.Monad.ST.Lazy
