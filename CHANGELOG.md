@@ -29,7 +29,7 @@
 
 - Remove `Args`, and use `Results` instead
 - Make `parser` function not take input directly
-- Remove redundant type parameter to `Grammar`.
+- Remove redundant type parameter to `Grammar`
 
 # 0.9
 
