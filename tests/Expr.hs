@@ -6,17 +6,46 @@ import Test.Tasty
 import Test.Tasty.QuickCheck as QC
 
 import Text.Earley
+import Text.Earley.Generator
+
+import qualified Arbitrary
 
 tests :: TestTree
 tests = testGroup "Expr"
-  [ QC.testProperty "Expr: parse . pretty = id" $
-    \e -> [e] === parseExpr (prettyExpr 0 e)
-  , QC.testProperty "Ambiguous Expr: parse . pretty ≈ id" $
-    \e -> e `elem` parseAmbiguousExpr (prettyExpr 0 e)
+  [ QC.testProperty "Left-recursive: parse . pretty = id" $
+    \e -> [e] === parseLeftExpr (prettyLeftExpr 0 e)
+  , QC.testProperty "Left-recursive: parse . pretty = id (generator)" $ do
+    (e, s) <- Arbitrary.arbitrary $ generator leftExpr tokens
+    return
+      $ [e] === parseLeftExpr (prettyLeftExpr 0 e)
+      .&&. [e] === parseLeftExpr (unwords s)
+  , QC.testProperty "Right-recursive: parse . pretty = id" $
+    \e -> [e] === parseRightExpr (prettyRightExpr 0 e)
+  , QC.testProperty "Right-recursive: parse . pretty = id (generator)" $ do
+    (e, s) <- Arbitrary.arbitrary $ generator rightExpr tokens
+    return
+      $ [e] === parseRightExpr (prettyRightExpr 0 e)
+      .&&. [e] === parseRightExpr (unwords s)
+  , QC.testProperty "Ambiguous: parse . pretty ≈ id" $
+    \e -> e `elem` parseAmbiguousExpr (prettyLeftExpr 0 e)
+      .&&. e `elem` parseAmbiguousExpr (prettyRightExpr 0 e)
+      .&&. [e] == parseAmbiguousExpr (prettyAmbiguousExpr e)
+  , QC.testProperty "Ambiguous: parse . pretty ≈ id (generator)" $ do
+    (e, s) <- Arbitrary.arbitrary $ generator ambiguousExpr tokens
+    return $ e `elem` parseAmbiguousExpr (prettyLeftExpr 0 e)
+      .&&. e `elem` parseAmbiguousExpr (prettyRightExpr 0 e)
+      .&&. [e] == parseAmbiguousExpr (prettyAmbiguousExpr e)
+      .&&. e `elem` parseAmbiguousExpr (unwords s)
   ]
 
-parseExpr :: String -> [Expr]
-parseExpr input = fst (fullParses (parser expr) (lexExpr input)) -- We need to annotate types for point-free version
+tokens :: [String]
+tokens = pure <$> "abcxyz+*()"
+
+parseLeftExpr :: String -> [Expr]
+parseLeftExpr input = fst (fullParses (parser leftExpr) (lexExpr input))
+
+parseRightExpr :: String -> [Expr]
+parseRightExpr input = fst (fullParses (parser rightExpr) (lexExpr input))
 
 parseAmbiguousExpr :: String -> [Expr]
 parseAmbiguousExpr input = fst (fullParses (parser ambiguousExpr) (lexExpr input))
@@ -41,12 +70,27 @@ instance Arbitrary Expr where
   shrink (Add a b)  = a : b : [ Add a' b | a' <- shrink a ] ++ [ Add a b' | b' <- shrink b ]
   shrink (Mul a b)  = a : b : [ Mul a' b | a' <- shrink a ] ++ [ Mul a b' | b' <- shrink b ]
 
-expr :: Grammar r (Prod r String String Expr)
-expr = mdo
+leftExpr :: Grammar r (Prod r String String Expr)
+leftExpr = mdo
   x1 <- rule $ Add <$> x1 <* namedToken "+" <*> x2
             <|> x2
             <?> "sum"
   x2 <- rule $ Mul <$> x2 <* namedToken "*" <*> x3
+            <|> x3
+            <?> "product"
+  x3 <- rule $ Var <$> (satisfy ident <?> "identifier")
+            <|> namedToken "(" *> x1 <* namedToken ")"
+  return x1
+  where
+    ident (x:_) = isAlpha x
+    ident _     = False
+
+rightExpr :: Grammar r (Prod r String String Expr)
+rightExpr = mdo
+  x1 <- rule $ Add <$> x2 <* namedToken "+" <*> x1
+            <|> x2
+            <?> "sum"
+  x2 <- rule $ Mul <$> x3 <* namedToken "*" <*> x2
             <|> x3
             <?> "product"
   x3 <- rule $ Var <$> (satisfy ident <?> "identifier")
@@ -75,10 +119,20 @@ prettyParens :: Bool -> String -> String
 prettyParens True s  = "(" ++ s ++ ")"
 prettyParens False s = s
 
-prettyExpr :: Int -> Expr -> String
-prettyExpr _ (Var s) = s
-prettyExpr d (Add a b) = prettyParens (d > 0) $ prettyExpr 0 a ++ " + " ++ prettyExpr 1 b
-prettyExpr d (Mul a b) = prettyParens (d > 1) $ prettyExpr 1 a ++ " * " ++ prettyExpr 2 b
+prettyLeftExpr :: Int -> Expr -> String
+prettyLeftExpr _ (Var s) = s
+prettyLeftExpr d (Add a b) = prettyParens (d > 0) $ prettyLeftExpr 0 a ++ " + " ++ prettyLeftExpr 1 b
+prettyLeftExpr d (Mul a b) = prettyParens (d > 1) $ prettyLeftExpr 1 a ++ " * " ++ prettyLeftExpr 2 b
+
+prettyRightExpr :: Int -> Expr -> String
+prettyRightExpr _ (Var s) = s
+prettyRightExpr d (Add a b) = prettyParens (d > 0) $ prettyRightExpr 1 a ++ " + " ++ prettyRightExpr 0 b
+prettyRightExpr d (Mul a b) = prettyParens (d > 1) $ prettyRightExpr 2 a ++ " * " ++ prettyRightExpr 1 b
+
+prettyAmbiguousExpr :: Expr -> String
+prettyAmbiguousExpr (Var s) = s
+prettyAmbiguousExpr (Add a b) = prettyParens True $ prettyAmbiguousExpr a ++ " + " ++ prettyAmbiguousExpr b
+prettyAmbiguousExpr (Mul a b) = prettyParens True $ prettyAmbiguousExpr a ++ " * " ++ prettyAmbiguousExpr b
 
 -- @words@ like lexer, but consider parentheses as separate tokens
 lexExpr :: String -> [String]

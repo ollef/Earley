@@ -1,6 +1,7 @@
 module Text.Earley.Generator
   ( Result(..)
   , Generator
+  , generator
   , language
   , upTo
   , exactly

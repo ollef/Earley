@@ -46,4 +46,3 @@ issue14 tree = do
     go x (Pure ())   = x
     go x (Alt b1 b2) = go x b1 <|> go x b2
     go x (Ap b1 b2)  = go x b1 <* go x b2
-
