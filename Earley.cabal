@@ -140,6 +140,7 @@ test-suite tests
                        Arbitrary,
                        Empty,
                        Expr,
+                       Generator,
                        InlineAlts,
                        Issue11,
                        Issue14,

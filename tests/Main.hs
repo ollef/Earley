@@ -3,6 +3,7 @@ import Test.Tasty
 
 import qualified Empty
 import qualified Expr
+import qualified Generator
 import qualified InlineAlts
 import qualified Issue11
 import qualified Issue14
@@ -16,6 +17,7 @@ main :: IO ()
 main = defaultMain $ testGroup "Tests"
   [ Empty.tests
   , Expr.tests
+  , Generator.tests
   , InlineAlts.tests
   , Issue11.tests
   , Issue14.tests
