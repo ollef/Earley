@@ -63,9 +63,9 @@ is the following:
 
 ### [Text.Earley.Generator](https://hackage.haskell.org/package/Earley/docs/Text-Earley-Generator.html)
 
-A language generator for grammars.
+Functionality to generate the members of the language that a grammar generates.
 
-To get the language that a grammar generates given a list of allowed tokens, run e.g.:
+To get the language of a grammar given a list of allowed tokens, run e.g.:
 
 ```haskell
    language (generator romanNumeralsGrammar "VIX")
