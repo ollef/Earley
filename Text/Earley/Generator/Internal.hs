@@ -1,4 +1,6 @@
 {-# LANGUAGE CPP, BangPatterns, DeriveFunctor, GADTs, Rank2Types, RecursiveDo #-}
+-- | This module exposes the internals of the package: its API may change
+-- independently of the PVP-compliant version number.
 module Text.Earley.Generator.Internal where
 import Control.Applicative
 import Control.Monad
