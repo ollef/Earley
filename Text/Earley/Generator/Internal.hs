@@ -276,6 +276,9 @@ generator g ts = do
 --
 -- The members are returned as parse results paired with the list of tokens
 -- used to produce the result.
+-- The elements of the returned list of results are sorted by their length in
+-- ascending order.  If there are multiple results of the same length they are
+-- returned in an unspecified order.
 language
   :: Generator t a
   -> [(a, [t])]
@@ -294,6 +297,9 @@ language gen = runST $ gen >>= go
 --
 -- The members are returned as parse results paired with the list of tokens
 -- used to produce the result.
+-- The elements of the returned list of results are sorted by their length in
+-- ascending order.  If there are multiple results of the same length they are
+-- returned in an unspecified order.
 upTo
   :: Int
   -> Generator t a
@@ -314,6 +320,7 @@ upTo len gen = runST $ gen >>= go 0
 --
 -- The members are returned as parse results paired with the list of tokens
 -- used to produce the result.
+-- If there are multiple results they are returned in an unspecified order.
 exactly
   :: Int
   -> Generator t a

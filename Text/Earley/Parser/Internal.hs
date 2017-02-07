@@ -307,6 +307,10 @@ parser g i = do
 -- | Return all parses from the result of a given parser. The result may
 -- contain partial parses. The 'Int's are the position at which a result was
 -- produced.
+--
+-- The elements of the returned list of results are sorted by their position in
+-- ascending order.  If there are multiple results at the same position they
+-- are returned in an unspecified order.
 allParses
   :: Parser e i a
   -> i
@@ -322,7 +326,9 @@ allParses p i = runST $ p i >>= go
 
 {-# INLINE fullParses #-}
 -- | Return all parses that reached the end of the input from the result of a
---   given parser.
+-- given parser.
+--
+-- If there are multiple results they are returned in an unspecified order.
 fullParses
   :: ListLike i t
   => Parser e i a
