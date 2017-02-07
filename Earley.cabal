@@ -143,6 +143,7 @@ test-suite tests
                        InlineAlts,
                        Issue11,
                        Issue14,
+                       Lambda,
                        Mixfix,
                        Optional,
                        ReversedWords,

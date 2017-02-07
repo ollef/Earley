@@ -6,6 +6,7 @@ import qualified Expr
 import qualified InlineAlts
 import qualified Issue11
 import qualified Issue14
+import qualified Lambda
 import qualified Mixfix
 import qualified Optional
 import qualified ReversedWords
@@ -18,6 +19,7 @@ main = defaultMain $ testGroup "Tests"
   , InlineAlts.tests
   , Issue11.tests
   , Issue14.tests
+  , Lambda.tests
   , Mixfix.tests
   , Optional.tests
   , ReversedWords.tests
