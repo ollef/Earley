@@ -260,7 +260,6 @@ generate (st:ss) env = case st of
 
 type Generator t a = forall s. ST s (Result s t a)
 
-{-# INLINE generator #-}
 -- | Create a language generator for given grammar and list of allowed tokens.
 generator
   :: (forall r. Grammar r (Prod r e t a))
@@ -271,7 +270,6 @@ generator g ts = do
   s <- initialState =<< runGrammar (fmap nt . mkRule) g
   generate [s] $ emptyGenerationEnv ts
 
-{-# INLINE language #-}
 -- | Run a generator, returning all members of the language.
 --
 -- The members are returned as parse results paired with the list of tokens
@@ -291,7 +289,6 @@ language gen = runST $ gen >>= go
         as <- mas
         (as ++) <$> (go =<< k)
 
-{-# INLINE upTo #-}
 -- | @upTo n gen@ runs the generator @gen@, returning all members of the
 -- language that are of length less than or equal to @n@.
 --
@@ -314,7 +311,6 @@ upTo len gen = runST $ gen >>= go 0
         (as ++) <$> (go (curLen + 1) =<< k)
     go _ _ = return []
 
-{-# INLINE exactly #-}
 -- | @exactly n gen@ runs the generator @gen@, returning all members of the
 -- language that are of length equal to @n@.
 --
