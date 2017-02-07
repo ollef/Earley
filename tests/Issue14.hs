@@ -11,6 +11,9 @@ tests = testGroup "Issue 14"
     \x -> fullParses (parser (issue14 x)) ""
     == (,) (replicate (issue14Length x) ())
            Report { position = 0, expected = [], unconsumed = [] }
+  , QC.testProperty "The same rule in alternatives generates many results" $
+    \x -> language (generator (issue14 x) "")
+    == replicate (issue14Length x) ((), "")
   ]
 
 data Issue14 a

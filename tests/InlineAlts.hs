@@ -8,9 +8,12 @@ import Text.Earley
 
 tests :: TestTree
 tests = testGroup "Inline alternatives"
-  [ HU.testCase "They work" $
+  [ HU.testCase "They work when parsed" $
       let input = "ababbbaaabaa" in
       allParses (parser inlineAlts) input @?= allParses (parser nonInlineAlts) input
+  , HU.testCase "They work when generated" $
+      take 1000 (language $ generator inlineAlts "ab") @?=
+      take 1000 (language $ generator nonInlineAlts "ab")
   ]
 
 inlineAlts :: Grammar r (Prod r Char Char String)

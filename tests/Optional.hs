@@ -32,6 +32,18 @@ tests = testGroup "Optional"
   , HU.testCase "Using rules without continuation Just" $
       fullParses (parser $ rule $ optional $ namedToken 'a') "a"
       @?= (,) [Just 'a'] Report {position = 1, expected = "", unconsumed = ""}
+  , HU.testCase "Generate optional" $
+      language (generator (return optional_) "ab")
+      @?= [((Nothing, 'b'), "b"), ((Just 'a', 'b'), "ab")]
+  , HU.testCase "Generate optional using rules" $
+      language (generator optionalRule "ab")
+      @?= [((Nothing, 'b'), "b"), ((Just 'a', 'b'), "ab")]
+  , HU.testCase "Generate optional without continuation" $
+      language (generator (return $ optional $ namedToken 'a') "ab")
+      @?= [(Nothing, ""), (Just 'a', "a")]
+  , HU.testCase "Generate optional using rules without continuation" $
+      language (generator (rule $ optional $ namedToken 'a') "ab")
+      @?= [(Nothing, ""), (Just 'a', "a")]
   ]
 
 optional_ :: Prod r Char Char (Maybe Char, Char)

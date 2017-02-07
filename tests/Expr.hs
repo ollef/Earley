@@ -6,7 +6,6 @@ import Test.Tasty
 import Test.Tasty.QuickCheck as QC
 
 import Text.Earley
-import Text.Earley.Generator
 
 import qualified Arbitrary
 
@@ -63,7 +62,7 @@ instance Arbitrary Expr where
                                      , Add <$> arbExpr1 <*> arbExpr1
                                      , Mul <$> arbExpr1 <*> arbExpr1
                                      ]
-                                     where arbExpr1 = arbExpr (n `div` 2)
+                                     where arbExpr1 = arbExpr (n `div` 3)
           arbExpr _          = arbIdent
 
   shrink (Var _)    = []

@@ -9,8 +9,8 @@ someWords :: Grammar r (Prod r () Char [String])
 someWords = return $ flip (:) <$> (map reverse <$> some (list "word")) <*> list "stop"
 
 tests :: TestTree
-tests = testGroup "Unit Tests"
-  [ HU.testCase "Some reversed words" $
+tests = testGroup "Reversed words"
+  [ HU.testCase "Parse" $
       let input = "wordwordstop"
           l     = length input in
       allParses (parser someWords) input
@@ -18,4 +18,11 @@ tests = testGroup "Unit Tests"
                                                      , expected   = []
                                                      , unconsumed = []
                                                      }
+  , HU.testCase "Generate" $
+    upTo 16 (generator someWords "stopwrd")
+    @?=
+    [ (["stop", "drow"], "wordstop")
+    , (["stop", "drow", "drow"], "wordwordstop")
+    , (["stop","drow","drow","drow"],"wordwordwordstop")
+    ]
   ]
