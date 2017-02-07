@@ -1,5 +1,7 @@
 # Unreleased
 
+# 0.12.0.0
+
 - Add the `Generator` module for generating grammar members
 - Change (simplify) the type returned by `parser`, introducing  a `Parser` type synonym for it, and change the signature of `allParses`, `fullParses`, and `report` to accept a `Parser`
 - The `Text.Earley.Internal` module is now `Text.Earley.Parser.Internal`
