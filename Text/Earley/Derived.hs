@@ -26,7 +26,7 @@ namedToken x = token x <?> x
 -- | Match a list of tokens in sequence.
 {-# INLINE list #-}
 list :: Eq t => [t] -> Prod r e t [t]
-list = foldr (liftA2 (:) . satisfy . (==)) (pure [])
+list = listLike
 
 -- | Match a 'ListLike' of tokens in sequence.
 {-# INLINE listLike #-}
