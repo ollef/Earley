@@ -125,6 +125,8 @@ benchmark bench
   other-modules:
                        Text.Earley,
                        Text.Earley.Derived,
+                       Text.Earley.Generator,
+                       Text.Earley.Generator.Internal,
                        Text.Earley.Grammar,
                        Text.Earley.Parser,
                        Text.Earley.Parser.Internal
