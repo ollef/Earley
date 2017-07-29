@@ -9,7 +9,7 @@ license:             BSD3
 license-file:        LICENSE
 author:              Olle Fredriksson
 maintainer:          fredriksson.olle@gmail.com
-copyright:           (c) 2014-2016 Olle Fredriksson
+copyright:           (c) 2014-2017 Olle Fredriksson
 category:            Parsing
 build-type:          Simple
 cabal-version:       >=1.10
