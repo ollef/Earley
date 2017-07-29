@@ -1,5 +1,9 @@
 # Unreleased
 
+# 0.12.0.1
+
+- Update 'base' dependency bounds
+
 # 0.12.0.0
 
 - Add the `Generator` module for generating grammar members
