@@ -21,53 +21,47 @@ import Data.Monoid
 data Rule s r e t a = Rule
   { ruleProd  :: ProdR s r e t a
   , ruleConts :: !(STRef s (STRef s [Cont s r e t a r]))
-  , ruleNulls :: !(ST s [a])
-  , ruleNullsState :: !(STRef s NullsState)
+  , ruleNulls :: !(ST s ([a], Bool))
+  -- ^ Null productions. The bool specifies whether there are any null
+  -- productions and can be inspected without forcing the list of results
   }
-
-data NullsState = NullsNotComputed | NullsComputing | NullsComputed
 
 mkRule :: ProdR s r e t a -> ST s (Rule s r e t a)
 mkRule p = mdo
   c <- newSTRef =<< newSTRef mempty
-  nullsComputing <- newSTRef NullsNotComputed
-  computeNullsRef <- newSTRef $ mdo
-    writeSTRef nullsComputing NullsComputing
-    writeSTRef computeNullsRef $ return result
-    result <- prodNulls False p
-    writeSTRef nullsComputing NullsComputed
-    return result
-  return $ Rule (removeNulls p) c (join $ readSTRef computeNullsRef) nullsComputing
+  computeNullsRef <- newSTRef $ do
+    writeSTRef computeNullsRef $ return ([], False)
+    nullResults <- prodNulls True p
+    if null nullResults then
+      return ([], False)
+    else mdo
+      writeSTRef computeNullsRef $ return (result, True)
+      result <- prodNulls False p
+      return (result, True)
+  return $ Rule (removeNulls p) c $ join $ readSTRef computeNullsRef
 
 prodNulls :: Bool -> ProdR s r e t a -> ST s [a]
-prodNulls !productive prod = case prod of
+prodNulls strict prod = case prod of
   Terminal {} -> return mempty
-  NonTerminal r p
-    | productive -> go
-    | otherwise -> do
-      nullsState <- readSTRef $ ruleNullsState r
-      case nullsState of
-        NullsNotComputed -> go
-        NullsComputing -> return []
-        NullsComputed -> go
-    where
-      go = do
-        pres <- prodNulls productive p
-        ns <- ruleNulls r
-        return $ ns <**> pres
+  NonTerminal r p -> do
+    (ns, hasNulls) <- ruleNulls r
+    if strict && not hasNulls then
+      return []
+    else do
+      pres <- prodNulls strict p
+      return $ ns <**> pres
   Pure a -> return $ pure a
   Alts as p -> do
-    pres <- prodNulls productive p
-    (_, revres) <- foldM (\(productive', revres) a -> do
-        ares <- prodNulls productive' a
-        let res = ares <**> pres
-        return (productive' || not (null res), res : revres))
-      (productive, []) as
-    return $ concat $ reverse revres
+    asres <- concat <$> mapM (prodNulls strict) as
+    if strict && null asres then
+      return []
+    else do
+      pres <- prodNulls strict p
+      return $ asres <**> pres
   Many a p -> mdo
     r <- mkRule $ pure [] <|> (:) <$> a <*> NonTerminal r (Pure id)
-    prodNulls productive $ NonTerminal r p
-  Named p _ -> prodNulls productive p
+    prodNulls strict $ NonTerminal r p
+  Named p _ -> prodNulls strict p
 
 -- | Remove (some) nulls from a production
 removeNulls :: ProdR s r e t a -> ProdR s r e t a
@@ -273,11 +267,11 @@ parse (st:ss) env = case st of
       rkref <- readSTRef $ ruleConts r
       ks    <- readSTRef rkref
       writeSTRef rkref (Cont pure p args scont : ks)
-      ns    <- ruleNulls r
+      (ns, hasNulls) <- ruleNulls r
       let addNullState
-            | null ns = id
-            | otherwise = (:)
+            | hasNulls = (:)
                         $ State p (\f -> Results (pure $ map f ns) >>= args) pos scont
+            | otherwise = id
       if null ks then do -- The rule has not been expanded at this position.
         st' <- State (ruleProd r) pure Current <$> newConts rkref
         parse (addNullState $ st' : ss)
