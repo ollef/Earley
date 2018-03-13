@@ -1,5 +1,8 @@
 # Unreleased
 
+# 0.12.1.0
+
+- GHC 8.4.1 support
 - Update 'base' dependency bounds
 - Add `Semigroup` instance to the `Prod` type
 
