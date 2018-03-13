@@ -1,6 +1,7 @@
 # Unreleased
 
 - Update 'base' dependency bounds
+- Add `Semigroup` instance to the `Prod` type
 
 # 0.12.0.1
 

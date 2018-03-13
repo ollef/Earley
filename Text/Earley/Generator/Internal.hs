@@ -13,6 +13,7 @@ import Text.Earley.Grammar
 #if !MIN_VERSION_base(4,8,0)
 import Data.Monoid
 #endif
+import Data.Semigroup
 
 -------------------------------------------------------------------------------
 -- * Concrete rules and productions
@@ -86,6 +87,9 @@ instance Monad (Results t s) where
   Results stxs >>= f = Results $ do
     xs <- stxs
     concat <$> mapM (\(x, ts) -> fmap (\(y, ts') -> (y, ts' ++ ts)) <$> unResults (f x)) xs
+
+instance Semigroup (Results s t a) where
+  (<>) = (<|>)
 
 instance Monoid (Results s t a) where
   mempty = empty

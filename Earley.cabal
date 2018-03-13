@@ -39,6 +39,8 @@ library
                        Text.Earley.Parser,
                        Text.Earley.Parser.Internal
   build-depends:       base >=4.6 && <5, ListLike >=4.1
+  if impl(ghc < 8.0)
+    build-depends:     semigroups >=0.18
   default-language:    Haskell2010
   ghc-options:         -Wall
                        -funbox-strict-fields
@@ -119,7 +121,9 @@ benchmark bench
   type:                exitcode-stdio-1.0
   hs-source-dirs:      . bench
   main-is:             BenchAll.hs
-  build-depends:       base, deepseq, criterion >=1.1, parsec >=3.1, ListLike
+  build-depends:       base, ListLike, deepseq, criterion >=1.1, parsec >=3.1
+  if impl(ghc < 8.0)
+    build-depends:     semigroups >=0.18
   default-language:    Haskell2010
   ghc-options:         -Wall
   other-modules:

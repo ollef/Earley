@@ -16,6 +16,7 @@ import Data.String (IsString(..))
 #if !MIN_VERSION_base(4,8,0)
 import Data.Monoid
 #endif
+import Data.Semigroup
 
 infixr 0 <?>
 
@@ -62,6 +63,9 @@ terminal p = Terminal p $ Pure id
 -- | A named production (used for reporting expected things).
 (<?>) :: Prod r e t a -> e -> Prod r e t a
 (<?>) = Named
+
+instance Semigroup (Prod r e t a) where
+  (<>) = (<|>)
 
 instance Monoid (Prod r e t a) where
   mempty  = empty
