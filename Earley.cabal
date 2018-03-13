@@ -121,19 +121,11 @@ benchmark bench
   type:                exitcode-stdio-1.0
   hs-source-dirs:      . bench
   main-is:             BenchAll.hs
-  build-depends:       base, ListLike, deepseq, criterion >=1.1, parsec >=3.1
+  build-depends:       base, Earley, ListLike, deepseq, criterion >=1.1, parsec >=3.1
   if impl(ghc < 8.0)
     build-depends:     semigroups >=0.18
   default-language:    Haskell2010
   ghc-options:         -Wall
-  other-modules:
-                       Text.Earley,
-                       Text.Earley.Derived,
-                       Text.Earley.Generator,
-                       Text.Earley.Generator.Internal,
-                       Text.Earley.Grammar,
-                       Text.Earley.Parser,
-                       Text.Earley.Parser.Internal
 
 test-suite tests
   type:                exitcode-stdio-1.0
