@@ -38,7 +38,7 @@ library
                        Text.Earley.Mixfix,
                        Text.Earley.Parser,
                        Text.Earley.Parser.Internal
-  build-depends:       base >=4.6 && <4.11, ListLike >=4.1
+  build-depends:       base >=4.6 && <5, ListLike >=4.1
   default-language:    Haskell2010
   ghc-options:         -Wall
                        -funbox-strict-fields

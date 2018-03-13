@@ -1,5 +1,7 @@
 # Unreleased
 
+- Update 'base' dependency bounds
+
 # 0.12.0.1
 
 - Update 'base' dependency bounds
