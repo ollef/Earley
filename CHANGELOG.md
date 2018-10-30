@@ -1,5 +1,7 @@
 # Unreleased
 
+- Add the `eof` operator
+
 # 0.12.1.0
 
 - GHC 8.4.1 support

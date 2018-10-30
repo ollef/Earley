@@ -4,5 +4,7 @@
 *.hp
 *.prof
 dist/
+dist-newstyle/
+.ghc.environment.*
 .cabal-sandbox
 cabal.sandbox.config

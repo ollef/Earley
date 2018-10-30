@@ -39,6 +39,7 @@ prodNulls :: ProdR s r e t a -> Results s t a
 prodNulls prod = case prod of
   Terminal {}     -> empty
   NonTerminal r p -> ruleNulls r <**> prodNulls p
+  Eof {}          -> empty
   Pure a          -> pure a
   Alts as p       -> mconcat (map prodNulls as) <**> prodNulls p
   Many a p        -> prodNulls (pure [] <|> pure <$> a) <**> prodNulls p
@@ -49,6 +50,7 @@ removeNulls :: ProdR s r e t a -> ProdR s r e t a
 removeNulls prod = case prod of
   Terminal {}      -> prod
   NonTerminal {}   -> prod
+  Eof {}           -> prod
   Pure _           -> empty
   Alts as (Pure f) -> alts (map removeNulls as) $ Pure f
   Alts {}          -> prod
@@ -186,6 +188,7 @@ data GenerationEnv s e t a = GenerationEnv
     -- ^ Computation that resets the continuation refs of productions
   , tokens  :: ![t]
     -- ^ The possible tokens
+  , isEof   :: Bool
   }
 
 {-# INLINE emptyGenerationEnv #-}
@@ -195,6 +198,7 @@ emptyGenerationEnv ts = GenerationEnv
   , next    = mempty
   , reset   = return ()
   , tokens  = ts
+  , isEof   = False
   }
 
 -- | The internal generation routine
@@ -212,7 +216,10 @@ generate (st:ss) env = case st of
   Final res -> generate ss env {results = unResults res : results env}
   State pr args pos scont -> case pr of
     Terminal f p -> generate ss env
-      { next = [State p (\g -> Results (pure $ map (\(t, a) -> (g a, [t])) xs) >>= args) Previous scont | xs <- [mapMaybe (\t -> (,) t <$> f t) $ tokens env], not $ null xs]
+      { next = [State p (\g -> Results (pure $ map (\(t, a) -> (g a, [t])) xs) >>= args) Previous scont
+               | not (isEof env),
+                 xs <- [mapMaybe (\t -> (,) t <$> f t) $ tokens env],
+                 not $ null xs]
             ++ next env
       }
     NonTerminal r p -> do
@@ -230,6 +237,7 @@ generate (st:ss) env = case st of
               env {reset = resetConts r >> reset env}
       else -- The rule has already been expanded at this position.
         generate (addNullState ss) env
+    Eof p -> generate (State p args pos scont:ss) env { isEof = True }
     Pure a
       -- Skip following continuations that stem from the current position; such
       -- continuations are handled separately.

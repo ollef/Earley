@@ -39,6 +39,7 @@ prodNulls :: ProdR s r e t a -> Results s a
 prodNulls prod = case prod of
   Terminal {}     -> empty
   NonTerminal r p -> ruleNulls r <**> prodNulls p
+  Eof {}          -> empty
   Pure a          -> pure a
   Alts as p       -> mconcat (map prodNulls as) <**> prodNulls p
   Many a p        -> prodNulls (pure [] <|> pure <$> a) <**> prodNulls p
@@ -49,6 +50,7 @@ removeNulls :: ProdR s r e t a -> ProdR s r e t a
 removeNulls prod = case prod of
   Terminal {}      -> prod
   NonTerminal {}   -> prod
+  Eof {}           -> prod
   Pure _           -> empty
   Alts as (Pure f) -> alts (map removeNulls as) $ Pure f
   Alts {}          -> prod
@@ -262,6 +264,10 @@ parse (st:ss) env = case st of
               env {reset = resetConts r >> reset env}
       else -- The rule has already been expanded at this position.
         parse (addNullState ss) env
+    Eof p ->
+      if ListLike.null (input env)
+        then parse (State p args pos scont:ss) env
+        else parse ss env
     Pure a
       -- Skip following continuations that stem from the current position; such
       -- continuations are handled separately.

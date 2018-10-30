@@ -3,6 +3,7 @@
 module Text.Earley.Grammar
   ( Prod(..)
   , terminal
+  , eof
   , (<?>)
   , alts
   , Grammar(..)
@@ -47,6 +48,7 @@ data Prod r e t a where
   -- Applicative.
   Terminal    :: !(t -> Maybe a) -> !(Prod r e t (a -> b)) -> Prod r e t b
   NonTerminal :: !(r e t a) -> !(Prod r e t (a -> b)) -> Prod r e t b
+  Eof         :: !(Prod r e t a) -> Prod r e t a
   Pure        :: a -> Prod r e t a
   -- Monoid/Alternative. We have to special-case 'many' (though it can be done
   -- with rules) to be able to satisfy the Alternative interface.
@@ -59,6 +61,10 @@ data Prod r e t a where
 -- and return the @a@.
 terminal :: (t -> Maybe a) -> Prod r e t a
 terminal p = Terminal p $ Pure id
+
+-- | Match the end of input.
+eof :: Prod r e t ()
+eof = Eof (Pure ())
 
 -- | A named production (used for reporting expected things).
 (<?>) :: Prod r e t a -> e -> Prod r e t a
@@ -75,6 +81,7 @@ instance Functor (Prod r e t) where
   {-# INLINE fmap #-}
   fmap f (Terminal b p)    = Terminal b $ fmap (f .) p
   fmap f (NonTerminal r p) = NonTerminal r $ fmap (f .) p
+  fmap f (Eof p)           = Eof $ fmap f p
   fmap f (Pure x)          = Pure $ f x
   fmap f (Alts as p)       = Alts as $ fmap (f .) p
   fmap f (Many p q)        = Many p $ fmap (f .) q
@@ -97,6 +104,7 @@ instance Applicative (Prod r e t) where
   {-# INLINE (<*>) #-}
   Terminal b p    <*> q = Terminal b $ flip <$> p <*> q
   NonTerminal r p <*> q = NonTerminal r $ flip <$> p <*> q
+  Eof p           <*> q = Eof $ p <*> q
   Pure f          <*> q = fmap f q
   Alts as p       <*> q = alts as $ flip <$> p <*> q
   Many a p        <*> q = Many a $ flip <$> p <*> q
