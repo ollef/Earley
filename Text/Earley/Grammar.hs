@@ -64,12 +64,14 @@ terminal p = Terminal p $ Pure id
 (<?>) :: Prod r e t a -> e -> Prod r e t a
 (<?>) = Named
 
-instance Semigroup (Prod r e t a) where
-  (<>) = (<|>)
+-- | Lifted instance: @(<>) = 'liftA2' ('<>')@
+instance Semigroup a => Semigroup (Prod r e t a) where
+  (<>) = liftA2 (Data.Semigroup.<>)
 
-instance Monoid (Prod r e t a) where
-  mempty  = empty
-  mappend = (<|>)
+-- | Lifted instance: @mempty = 'pure' 'mempty'@
+instance Monoid a => Monoid (Prod r e t a) where
+  mempty  = pure mempty
+  mappend = liftA2 mappend
 
 instance Functor (Prod r e t) where
   {-# INLINE fmap #-}
