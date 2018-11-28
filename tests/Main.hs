@@ -11,6 +11,7 @@ import qualified Lambda
 import qualified Mixfix
 import qualified Optional
 import qualified ReversedWords
+import qualified UnbalancedPars
 import qualified VeryAmbiguous
 
 main :: IO ()
@@ -25,5 +26,6 @@ main = defaultMain $ testGroup "Tests"
   , Mixfix.tests
   , Optional.tests
   , ReversedWords.tests
+  , UnbalancedPars.tests
   , VeryAmbiguous.tests
   ]
