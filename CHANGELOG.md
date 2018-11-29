@@ -1,5 +1,6 @@
 # Unreleased
 
+- Change `Prod`'s `Monoid` and `Semigroup` instances to lift their element instances instead of being the same as the `Alternative` instance
 - Add unbalanced parentheses/EOF test
 
 # 0.12.1.0
