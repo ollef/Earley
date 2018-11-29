@@ -32,15 +32,3 @@ list = listLike
 {-# INLINE listLike #-}
 listLike :: (Eq t, ListLike i t) => i -> Prod r e t i
 listLike = ListLike.foldr (liftA2 ListLike.cons . satisfy . (==)) (pure ListLike.empty)
-
-{-# DEPRECATED symbol "Use `token` instead" #-}
-symbol :: Eq t => t -> Prod r e t t
-symbol = token
-
-{-# DEPRECATED namedSymbol "Use `namedToken` instead" #-}
-namedSymbol :: Eq t => t -> Prod r e t t
-namedSymbol = token
-
-{-# DEPRECATED word "Use `list` or `listLike` instead" #-}
-word :: Eq t => [t] -> Prod r e t [t]
-word = list

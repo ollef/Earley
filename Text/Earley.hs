@@ -4,8 +4,6 @@ module Text.Earley
     Prod, terminal, (<?>), Grammar, rule
   , -- * Derived operators
     satisfy, token, namedToken, list, listLike
-  , -- * Deprecated operators
-    symbol, namedSymbol, word
   , -- * Parsing
     Report(..), Parser.Result(..), Parser, parser, allParses, fullParses
   , -- * Recognition
