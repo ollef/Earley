@@ -1,5 +1,7 @@
 # Unreleased
 
+# 0.13.0.0
+
 - Remove the previously deprecated operators `symbol`, `namedSymbol`, and `word`
 - Change `Prod`'s `Monoid` and `Semigroup` instances to lift their element instances instead of being the same as the `Alternative` instance
 - Add unbalanced parentheses/EOF test
