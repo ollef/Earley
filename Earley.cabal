@@ -146,4 +146,5 @@ test-suite tests
                        Mixfix,
                        Optional,
                        ReversedWords,
+                       UnbalancedPars,
                        VeryAmbiguous
