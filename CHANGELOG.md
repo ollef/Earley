@@ -1,5 +1,9 @@
 # Unreleased
 
+# 0.13.0.1
+
+- Add a missing test module to the Cabal file
+
 # 0.13.0.0
 
 - Remove the previously deprecated operators `symbol`, `namedSymbol`, and `word`

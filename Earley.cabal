@@ -1,5 +1,5 @@
 name:                Earley
-version:             0.13.0.0
+version:             0.13.0.1
 synopsis:            Parsing all context-free grammars using Earley's algorithm.
 description:         See <https://www.github.com/ollef/Earley> for more
                      information and
