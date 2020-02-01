@@ -1,6 +1,7 @@
 -- | Derived operators.
 module Text.Earley.Derived where
 import Control.Applicative hiding (many)
+import Control.Monad (guard)
 import Data.ListLike(ListLike)
 import qualified Data.ListLike as ListLike
 
@@ -10,10 +11,13 @@ import Text.Earley.Grammar
 -- token.
 {-# INLINE satisfy #-}
 satisfy :: (t -> Bool) -> Prod r e t t
-satisfy p = Terminal f $ Pure id
-  where
-    f t | p t = Just t
-    f _       = Nothing
+satisfy p = satisfyMaybe ((<$) <*> guard . p)
+
+-- | Match a token that satisfies the given predicate. Returns the produced
+-- value.
+{-# INLINE satisfy' #-}
+satisfyMaybe :: (t -> Maybe a) -> Prod r e t a
+satisfyMaybe f = Terminal f $ Pure id
 
 -- | Match a single token.
 token :: Eq t => t -> Prod r e t t
