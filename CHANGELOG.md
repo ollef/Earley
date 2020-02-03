@@ -1,5 +1,7 @@
 # Unreleased
 
+- Add `satisfyMaybe` for matching tokens with a predicate that returns a `Maybe` result
+
 # 0.13.0.1
 
 - Add a missing test module to the Cabal file
