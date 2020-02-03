@@ -15,7 +15,7 @@ satisfy p = satisfyMaybe ((<$) <*> guard . p)
 
 -- | Match a token that satisfies the given predicate. Returns the produced
 -- value.
-{-# INLINE satisfy' #-}
+{-# INLINE satisfyMaybe #-}
 satisfyMaybe :: (t -> Maybe a) -> Prod r e t a
 satisfyMaybe f = Terminal f $ Pure id
 
