@@ -8,16 +8,10 @@ import qualified Data.ListLike as ListLike
 import Text.Earley.Grammar
 
 -- | Match a token that satisfies the given predicate. Returns the matched
--- token.
+-- token. See also 'terminal'.
 {-# INLINE satisfy #-}
 satisfy :: (t -> Bool) -> Prod r e t t
-satisfy p = satisfyMaybe ((<$) <*> guard . p)
-
--- | Match a token that satisfies the given predicate. Returns the produced
--- value.
-{-# INLINE satisfyMaybe #-}
-satisfyMaybe :: (t -> Maybe a) -> Prod r e t a
-satisfyMaybe f = Terminal f $ Pure id
+satisfy p = terminal ((<$) <*> guard . p)
 
 -- | Match a single token.
 token :: Eq t => t -> Prod r e t t

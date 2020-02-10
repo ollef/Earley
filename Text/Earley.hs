@@ -3,7 +3,7 @@ module Text.Earley
   ( -- * Context-free grammars
     Prod, terminal, (<?>), Grammar, rule
   , -- * Derived operators
-    satisfy, satisfyMaybe, token, namedToken, list, listLike
+    satisfy, token, namedToken, list, listLike
   , -- * Parsing
     Report(..), Parser.Result(..), Parser, parser, allParses, fullParses
   , -- * Recognition
