@@ -6,7 +6,7 @@ import Control.Applicative
 import Control.Arrow
 import Control.Monad
 import Control.Monad.ST
-import Data.ListLike(ListLike)
+import Data.ListLike(ListLike, cons)
 import qualified Data.ListLike as ListLike
 import Data.STRef
 import Text.Earley.Grammar
@@ -43,6 +43,7 @@ prodNulls prod = case prod of
   Alts as p       -> mconcat (map prodNulls as) <**> prodNulls p
   Many a p        -> prodNulls (pure [] <|> pure <$> a) <**> prodNulls p
   Named p _       -> prodNulls p
+  NextToken {}    -> empty
 
 -- | Remove (some) nulls from a production
 removeNulls :: ProdR s r e t a -> ProdR s r e t a
@@ -54,6 +55,7 @@ removeNulls prod = case prod of
   Alts {}          -> prod
   Many {}          -> prod
   Named p n        -> Named (removeNulls p) n
+  NextToken p      -> NextToken (removeNulls p)
 
 type ProdR s r e t a = Prod (Rule s r) e t a
 
@@ -246,6 +248,9 @@ parse (st:ss) env = case st of
     Terminal f p -> case safeHead (input env) >>= f of
       Just a -> parse ss env {next = State p (args . ($ a)) Previous scont
                                    : next env}
+      Nothing -> parse ss env
+    NextToken p -> case safeHead (input env) of
+      Just t -> parse (State p (args . ($ t)) pos scont : ss) env
       Nothing -> parse ss env
     NonTerminal r p -> do
       rkref <- readSTRef $ ruleConts r

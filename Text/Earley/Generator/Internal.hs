@@ -43,6 +43,7 @@ prodNulls prod = case prod of
   Alts as p       -> mconcat (map prodNulls as) <**> prodNulls p
   Many a p        -> prodNulls (pure [] <|> pure <$> a) <**> prodNulls p
   Named p _       -> prodNulls p
+  NextToken {}    -> empty
 
 -- | Remove (some) nulls from a production
 removeNulls :: ProdR s r e t a -> ProdR s r e t a
@@ -54,6 +55,7 @@ removeNulls prod = case prod of
   Alts {}          -> prod
   Many {}          -> prod
   Named p n        -> Named (removeNulls p) n
+  NextToken p      -> NextToken (removeNulls p)
 
 type ProdR s r e t a = Prod (Rule s r) e t a
 
@@ -215,6 +217,8 @@ generate (st:ss) env = case st of
       { next = [State p (\g -> Results (pure $ map (\(t, a) -> (g a, [t])) xs) >>= args) Previous scont | xs <- [mapMaybe (\t -> (,) t <$> f t) $ tokens env], not $ null xs]
             ++ next env
       }
+    NextToken p ->
+      generate ([State p (\g -> Results (pure $ map (\(t, a) -> (g a, [t])) xs) >>= args) Previous scont | xs <- [map (\t -> (t, t)) $ tokens env]] ++ ss) env
     NonTerminal r p -> do
       rkref <- readSTRef $ ruleConts r
       ks    <- readSTRef rkref
