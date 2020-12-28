@@ -5,8 +5,6 @@ module Text.Earley.Generator.Internal where
 import Control.Applicative
 import Control.Monad
 import Control.Monad.ST.Lazy
-import Data.ListLike(ListLike)
-import qualified Data.ListLike as ListLike
 import Data.Maybe(mapMaybe)
 import Data.STRef.Lazy
 import Text.Earley.Grammar
@@ -170,12 +168,6 @@ data Result s t a
     -- the position in the input where these results were obtained, and the last
     -- component is the continuation.
   deriving Functor
-
-{-# INLINE safeHead #-}
-safeHead :: ListLike i t => i -> Maybe t
-safeHead ts
-  | ListLike.null ts = Nothing
-  | otherwise        = Just $ ListLike.head ts
 
 data GenerationEnv s e t a = GenerationEnv
   { results :: ![ST s [(a, [t])]]
