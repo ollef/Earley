@@ -5,6 +5,7 @@ module Text.Earley.Grammar
   , terminal
   , (<?>)
   , alts
+  , nextToken
   , Grammar(..)
   , rule
   , runGrammar
@@ -54,6 +55,7 @@ data Prod r e t a where
   Many        :: !(Prod r e t a) -> !(Prod r e t ([a] -> b)) -> Prod r e t b
   -- Error reporting.
   Named       :: !(Prod r e t a) -> e -> Prod r e t a
+  NextToken   :: !(Prod r e t (t -> b)) -> Prod r e t b
 
 -- | Match a token for which the given predicate returns @Just a@,
 -- and return the @a@.
@@ -63,6 +65,22 @@ terminal p = Terminal p $ Pure id
 -- | A named production (used for reporting expected things).
 (<?>) :: Prod r e t a -> e -> Prod r e t a
 (<?>) = Named
+
+-- | Look at the next token. This won't remove the token, but can be used to
+-- inspect which token would be used by the next production rule. If your tokens
+-- contain location information, this can be used to provide a way to annotate a
+-- production with a source span:
+--
+-- @
+-- located :: Prod r e (Pos, t) a -> Prod r e (Pos, t) (Pos, Pos, a)
+-- located p = liftA3 annotate lookahead p lookahead
+--   where annotate (p1, _) a (p2, _) = (p1, p2, a)
+-- @
+--
+-- As @Prod@ has no 'Monad' instance, this cannot be used to influence the rest
+-- of the parse (so the grammar remains context free).
+nextToken :: Prod r e t t
+nextToken = NextToken $ Pure id
 
 -- | Lifted instance: @(<>) = 'liftA2' ('<>')@
 instance Semigroup a => Semigroup (Prod r e t a) where
@@ -81,6 +99,7 @@ instance Functor (Prod r e t) where
   fmap f (Alts as p)       = Alts as $ fmap (f .) p
   fmap f (Many p q)        = Many p $ fmap (f .) q
   fmap f (Named p n)       = Named (fmap f p) n
+  fmap f (NextToken p)     = NextToken (fmap (f .) p)
 
 -- | Smart constructor for alternatives.
 alts :: [Prod r e t a] -> Prod r e t (a -> b) -> Prod r e t b
@@ -103,6 +122,7 @@ instance Applicative (Prod r e t) where
   Alts as p       <*> q = alts as $ flip <$> p <*> q
   Many a p        <*> q = Many a $ flip <$> p <*> q
   Named p n       <*> q = Named (p <*> q) n
+  NextToken p     <*> q = NextToken (flip <$> p <*> q)
 
 instance Alternative (Prod r e t) where
   empty = Alts [] $ pure id
