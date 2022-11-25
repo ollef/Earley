@@ -43,6 +43,7 @@ prodNulls prod = case prod of
   Alts as p       -> mconcat (map prodNulls as) <**> prodNulls p
   Many a p        -> prodNulls (pure [] <|> pure <$> a) <**> prodNulls p
   Named p _       -> prodNulls p
+  Constraint p _  -> prodNulls p
 
 -- | Remove (some) nulls from a production
 removeNulls :: ProdR s r e t a -> ProdR s r e t a
@@ -54,6 +55,7 @@ removeNulls prod = case prod of
   Alts {}          -> prod
   Many {}          -> prod
   Named p n        -> Named (removeNulls p) n
+  Constraint p n   -> Constraint (removeNulls p) n
 
 type ProdR s r e t a = Prod (Rule s r) e t a
 
@@ -288,6 +290,8 @@ parse (st:ss) env = case st of
       parse (State (NonTerminal r q) args pos scont : ss) env
     Named pr' n -> parse (State pr' args pos scont : ss)
                          env {names = n : names env}
+    Constraint pr' c -> parse (State pr' (test >=> args) pos scont : ss) env
+      where test x = if c x then return x else empty
 
 type Parser e i a = forall s. i -> ST s (Result s e i a)
 

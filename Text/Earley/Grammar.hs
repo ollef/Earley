@@ -4,6 +4,7 @@ module Text.Earley.Grammar
   ( Prod(..)
   , terminal
   , (<?>)
+  , constraint
   , alts
   , Grammar(..)
   , rule
@@ -54,6 +55,8 @@ data Prod r e t a where
   Many        :: !(Prod r e t a) -> !(Prod r e t ([a] -> b)) -> Prod r e t b
   -- Error reporting.
   Named       :: !(Prod r e t a) -> e -> Prod r e t a
+  -- Non-context-free extension: conditioning on the parsed output.
+  Constraint  :: !(Prod r e t a) -> (a -> Bool) -> Prod r e t a
 
 -- | Match a token for which the given predicate returns @Just a@,
 -- and return the @a@.
@@ -63,6 +66,10 @@ terminal p = Terminal p $ Pure id
 -- | A named production (used for reporting expected things).
 (<?>) :: Prod r e t a -> e -> Prod r e t a
 (<?>) = Named
+
+-- | A parser that filters results, post-parsing
+constraint :: (a -> Bool) -> Prod r e t a -> Prod r e t a
+constraint = flip Constraint
 
 -- | Lifted instance: @(<>) = 'liftA2' ('<>')@
 instance Semigroup a => Semigroup (Prod r e t a) where
