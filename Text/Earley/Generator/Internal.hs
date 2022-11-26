@@ -41,6 +41,7 @@ prodNulls prod = case prod of
   Alts as p       -> mconcat (map prodNulls as) <**> prodNulls p
   Many a p        -> prodNulls (pure [] <|> pure <$> a) <**> prodNulls p
   Named p _       -> prodNulls p
+  Constraint p _  -> prodNulls p
 
 -- | Remove (some) nulls from a production
 removeNulls :: ProdR s r e t a -> ProdR s r e t a
@@ -52,6 +53,7 @@ removeNulls prod = case prod of
   Alts {}          -> prod
   Many {}          -> prod
   Named p n        -> Named (removeNulls p) n
+  Constraint p n   -> Constraint (removeNulls p) n
 
 type ProdR s r e t a = Prod (Rule s r) e t a
 
@@ -253,6 +255,8 @@ generate (st:ss) env = case st of
       r <- mkRule $ pure [] <|> (:) <$> p <*> NonTerminal r (Pure id)
       generate (State (NonTerminal r q) args pos scont : ss) env
     Named pr' _ -> generate (State pr' args pos scont : ss) env
+    Constraint pr' c -> generate (State pr' (test >=> args) pos scont : ss) env
+      where test x = if c x then return x else empty
 
 type Generator t a = forall s. ST s (Result s t a)
 

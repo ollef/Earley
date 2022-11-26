@@ -1,6 +1,7 @@
 module Main where
 import Test.Tasty
 
+import qualified Constraint
 import qualified Empty
 import qualified Expr
 import qualified Generator
@@ -16,7 +17,8 @@ import qualified VeryAmbiguous
 
 main :: IO ()
 main = defaultMain $ testGroup "Tests"
-  [ Empty.tests
+  [ Constraint.tests
+  , Empty.tests
   , Expr.tests
   , Generator.tests
   , InlineAlts.tests
