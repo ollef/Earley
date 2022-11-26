@@ -37,5 +37,7 @@ list = listLike
 listLike :: (Eq t, ListLike i t) => i -> Prod r e t i
 listLike = ListLike.foldr (liftA2 ListLike.cons . satisfy . (==)) (pure ListLike.empty)
 
+-- | Whether or not the grammar matches the input string. Equivalently,
+-- whether the given input is in the language described by the grammars.
 matches :: ListLike i t => (forall r. Grammar r (Prod r e t a)) -> i -> Bool
 matches grammar = not . null . fst . fullParses (parser grammar)
