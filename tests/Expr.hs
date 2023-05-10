@@ -69,7 +69,7 @@ instance Arbitrary Expr where
   shrink (Add a b)  = a : b : [ Add a' b | a' <- shrink a ] ++ [ Add a b' | b' <- shrink b ]
   shrink (Mul a b)  = a : b : [ Mul a' b | a' <- shrink a ] ++ [ Mul a b' | b' <- shrink b ]
 
-leftExpr :: Grammar r (Prod r String String Expr)
+leftExpr :: Grammar r m (Prod r m String String Expr)
 leftExpr = mdo
   x1 <- rule $ Add <$> x1 <* namedToken "+" <*> x2
             <|> x2
@@ -84,7 +84,7 @@ leftExpr = mdo
     ident (x:_) = isAlpha x
     ident _     = False
 
-rightExpr :: Grammar r (Prod r String String Expr)
+rightExpr :: Grammar r m (Prod r m String String Expr)
 rightExpr = mdo
   x1 <- rule $ Add <$> x2 <* namedToken "+" <*> x1
             <|> x2
@@ -99,7 +99,7 @@ rightExpr = mdo
     ident (x:_) = isAlpha x
     ident _     = False
 
-ambiguousExpr :: Grammar r (Prod r String String Expr)
+ambiguousExpr :: Grammar r m (Prod r m String String Expr)
 ambiguousExpr = mdo
   x1 <- rule $ Add <$> x1 <* namedToken "+" <*> x1
             <|> x2

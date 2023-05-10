@@ -22,7 +22,7 @@ tests = testGroup "Very ambiguous"
     @? "Parser agrees with generator"
   ]
 
-veryAmbiguous :: Grammar r (Prod r Char Char ())
+veryAmbiguous :: Grammar r m (Prod r m Char Char ())
 veryAmbiguous = mdo
   s <- rule $ () <$ token 'b'
            <|> () <$ s <* s

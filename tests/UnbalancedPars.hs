@@ -38,7 +38,7 @@ data Token = EOF | Char !Char
   deriving (Eq, Ord, Show)
 
 fullParses'
-  :: (forall r. Grammar r (Prod r e Token a))
+  :: (forall r m. Grammar r m (Prod r m e Token a))
   -> String
   -> ([a], Report e String)
 fullParses' g s =
@@ -55,21 +55,21 @@ data Expr =
   Var Char | ExprInBrackets String Expr String
   deriving (Eq, Ord, Show)
 
-eof :: Prod r e Token Token
+eof :: Prod r m e Token Token
 eof = token EOF
 
-leftPar :: Prod r e Token String
+leftPar :: Prod r m e Token String
 leftPar = "(" <$ token (Char '(')
 
-rightPar :: Prod r e Token String
+rightPar :: Prod r m e Token String
 rightPar = ")" <$ token (Char ')')
 
-var :: Prod r e Token Expr
+var :: Prod r m e Token Expr
 var = terminal $ \t -> case t of
   Char c | isAlpha c -> Just $ Var c
   _ -> Nothing
 
-unbalancedPars :: Grammar r (Prod r String Token Expr)
+unbalancedPars :: Grammar r m (Prod r m String Token Expr)
 unbalancedPars = mdo
   expr <- rule $ var <|> exprInBrackets
   exprInBrackets <- rule $

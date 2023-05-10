@@ -1,4 +1,5 @@
 {-# LANGUAGE CPP, BangPatterns, DeriveFunctor, GADTs, Rank2Types, RecursiveDo #-}
+{-# LANGUAGE LambdaCase #-}
 -- | This module exposes the internals of the package: its API may change
 -- independently of the PVP-compliant version number.
 module Text.Earley.Parser.Internal where
@@ -14,18 +15,19 @@ import Text.Earley.Grammar
 import Data.Monoid
 #endif
 import Data.Semigroup
+import Data.Functor.Identity (Identity, runIdentity)
 
 -------------------------------------------------------------------------------
 -- * Concrete rules and productions
 -------------------------------------------------------------------------------
 -- | The concrete rule type that the parser uses
-data Rule s r e t a = Rule
-  { ruleProd  :: ProdR s r e t a
-  , ruleConts :: !(STRef s (STRef s [Cont s r e t a r]))
+data Rule s r m e t a = Rule
+  { ruleProd  :: ProdR s r m e t a
+  , ruleConts :: !(STRef s (STRef s [Cont s r m e t a r]))
   , ruleNulls :: !(Results s a)
   }
 
-mkRule :: ProdR s r e t a -> ST s (Rule s r e t a)
+mkRule :: ProdR s r m e t a -> ST s (Rule s r m e t a)
 mkRule p = mdo
   c <- newSTRef =<< newSTRef mempty
   computeNullsRef <- newSTRef $ do
@@ -35,7 +37,7 @@ mkRule p = mdo
     return ns
   return $ Rule (removeNulls p) c (Results $ join $ readSTRef computeNullsRef)
 
-prodNulls :: ProdR s r e t a -> Results s a
+prodNulls :: ProdR s r m e t a -> Results s a
 prodNulls prod = case prod of
   Terminal {}     -> empty
   NonTerminal r p -> ruleNulls r <**> prodNulls p
@@ -46,7 +48,7 @@ prodNulls prod = case prod of
   Constraint p _  -> prodNulls p
 
 -- | Remove (some) nulls from a production
-removeNulls :: ProdR s r e t a -> ProdR s r e t a
+removeNulls :: ProdR s r m e t a -> ProdR s r m e t a
 removeNulls prod = case prod of
   Terminal {}      -> prod
   NonTerminal {}   -> prod
@@ -57,9 +59,9 @@ removeNulls prod = case prod of
   Named p n        -> Named (removeNulls p) n
   Constraint p n   -> Constraint (removeNulls p) n
 
-type ProdR s r e t a = Prod (Rule s r) e t a
+type ProdR s r m e t a = Prod (Rule s r m) m e t a
 
-resetConts :: Rule s r e t a -> ST s ()
+resetConts :: Rule s r m e t a -> ST s ()
 resetConts r = writeSTRef (ruleConts r) =<< newSTRef mempty
 
 -------------------------------------------------------------------------------
@@ -106,42 +108,42 @@ data BirthPos
   deriving Eq
 
 -- | An Earley state with result type @a@.
-data State s r e t a where
-  State :: !(ProdR s r e t a)
+data State s r m e t a where
+  State :: !(ProdR s r m e t a)
         -> !(a -> Results s b)
         -> !BirthPos
-        -> !(Conts s r e t b c)
-        -> State s r e t c
-  Final :: !(Results s a) -> State s r e t a
+        -> !(Conts s r m e t b c)
+        -> State s r m e t c
+  Final :: !(Results s a) -> State s r m e t a
 
 -- | A continuation accepting an @a@ and producing a @b@.
-data Cont s r e t a b where
+data Cont s r m e t a b where
   Cont      :: !(a -> Results s b)
-            -> !(ProdR s r e t (b -> c))
+            -> !(ProdR s r m e t (b -> c))
             -> !(c -> Results s d)
-            -> !(Conts s r e t d e')
-            -> Cont s r e t a e'
-  FinalCont :: (a -> Results s c) -> Cont s r e t a c
+            -> !(Conts s r m e t d e')
+            -> Cont s r m e t a e'
+  FinalCont :: (a -> Results s c) -> Cont s r m e t a c
 
-data Conts s r e t a c = Conts
-  { conts     :: !(STRef s [Cont s r e t a c])
+data Conts s r m e t a c = Conts
+  { conts     :: !(STRef s [Cont s r m e t a c])
   , contsArgs :: !(STRef s (Maybe (STRef s (Results s a))))
   }
 
-newConts :: STRef s [Cont s r e t a c] -> ST s (Conts s r e t a c)
+newConts :: STRef s [Cont s r m e t a c] -> ST s (Conts s r m e t a c)
 newConts r = Conts r <$> newSTRef Nothing
 
-contraMapCont :: (b -> Results s a) -> Cont s r e t a c -> Cont s r e t b c
+contraMapCont :: (b -> Results s a) -> Cont s r m e t a c -> Cont s r m e t b c
 contraMapCont f (Cont g p args cs) = Cont (f >=> g) p args cs
 contraMapCont f (FinalCont args)   = FinalCont (f >=> args)
 
-contToState :: BirthPos -> Results s a -> Cont s r e t a c -> State s r e t c
+contToState :: BirthPos -> Results s a -> Cont s r m e t a c -> State s r m e t c
 contToState pos r (Cont g p args cs) = State p (\f -> r >>= g >>= args . f) pos cs
 contToState _   r (FinalCont args)   = Final $ r >>= args
 
 -- | Strings of non-ambiguous continuations can be optimised by removing
 -- indirections.
-simplifyCont :: Conts s r e t b a -> ST s [Cont s r e t b a]
+simplifyCont :: Conts s r m e t b a -> ST s [Cont s r m e t b a]
 simplifyCont Conts {conts = cont} = readSTRef cont >>= go False
   where
     go !_ [Cont g (Pure f) args cont'] = do
@@ -156,7 +158,7 @@ simplifyCont Conts {conts = cont} = readSTRef cont >>= go False
 -- * Grammars
 -------------------------------------------------------------------------------
 -- | Given a grammar, construct an initial state.
-initialState :: ProdR s a e t a -> ST s (State s a e t a)
+initialState :: ProdR s a m e t a -> ST s (State s a m e t a)
 initialState p = State p pure Previous <$> (newConts =<< newSTRef [FinalCont pure])
 
 -------------------------------------------------------------------------------
@@ -187,10 +189,10 @@ data Result s e i a
     -- continuation.
   deriving Functor
 
-data ParseEnv s e i t a = ParseEnv
+data ParseEnv s m e i t a = ParseEnv
   { results :: ![ST s [a]]
     -- ^ Results ready to be reported (when this position has been processed)
-  , next    :: ![State s a e t a]
+  , next    :: ![State s a m e t a]
     -- ^ States to process at the next position
   , reset   :: !(ST s ())
     -- ^ Computation that resets the continuation refs of productions
@@ -203,7 +205,7 @@ data ParseEnv s e i t a = ParseEnv
   }
 
 {-# INLINE emptyParseEnv #-}
-emptyParseEnv :: i -> ParseEnv s e i t a
+emptyParseEnv :: i -> ParseEnv s m e i t a
 emptyParseEnv i = ParseEnv
   { results = mempty
   , next    = mempty
@@ -213,36 +215,38 @@ emptyParseEnv i = ParseEnv
   , input   = i
   }
 
-{-# SPECIALISE parse :: [State s a e t a]
-                     -> ParseEnv s e [t] t a
-                     -> ST s (Result s e [t] a) #-}
+-- {-# SPECIALISE parse :: [State s a m e t a]
+--                      -> ParseEnv s m e [t] t a
+--                      -> ST s (Result s e [t] a) #-}
 -- | The internal parsing routine
 parse :: ListLike i t
-      => [State s a e t a] -- ^ States to process at this position
-      -> ParseEnv s e i t a
+      => (forall x. m x -> ST s x)
+      -> [State s a m e t a] -- ^ States to process at this position
+      -> ParseEnv s m e i t a
       -> ST s (Result s e i a)
-parse [] env@ParseEnv {results = [], next = []} = do
+parse _ [] env@ParseEnv {results = [], next = []}  = do
   reset env
   return $ Ended Report
     { position   = curPos env
     , expected   = names env
     , unconsumed = input env
     }
-parse [] env@ParseEnv {results = []} = do
+parse embed [] env@ParseEnv {results = []} = do
   reset env
-  parse (next env)
+  parse embed
+        (next env)
         (emptyParseEnv $ ListLike.drop 1 $ input env) {curPos = curPos env + 1}
-parse [] env = do
+parse embed [] env = do
   reset env
   return $ Parsed (concat <$> sequence (results env)) (curPos env) (input env)
-         $ parse [] env {results = [], reset = return ()}
-parse (st:ss) env = case st of
-  Final res -> parse ss env {results = unResults res : results env}
+         $ parse embed [] env {results = [], reset = return ()}
+parse embed (st:ss) env = case st of
+  Final res -> parse embed ss env {results = unResults res : results env}
   State pr args pos scont -> case pr of
     Terminal f p -> case ListLike.uncons (input env) >>= f . fst of
-      Just a -> parse ss env {next = State p (args . ($ a)) Previous scont
+      Just a -> parse embed ss env {next = State p (args . ($ a)) Previous scont
                                    : next env}
-      Nothing -> parse ss env
+      Nothing -> parse embed ss env
     NonTerminal r p -> do
       rkref <- readSTRef $ ruleConts r
       ks    <- readSTRef rkref
@@ -254,44 +258,49 @@ parse (st:ss) env = case st of
                         $ State p (\f -> Results (pure $ map f ns) >>= args) pos scont
       if null ks then do -- The rule has not been expanded at this position.
         st' <- State (ruleProd r) pure Current <$> newConts rkref
-        parse (addNullState $ st' : ss)
+        parse embed (addNullState $ st' : ss)
               env {reset = resetConts r >> reset env}
       else -- The rule has already been expanded at this position.
-        parse (addNullState ss) env
+        parse embed (addNullState ss) env
     Pure a
       -- Skip following continuations that stem from the current position; such
       -- continuations are handled separately.
-      | pos == Current -> parse ss env
+      | pos == Current -> parse embed ss env
       | otherwise -> do
         let argsRef = contsArgs scont
         masref  <- readSTRef argsRef
         case masref of
           Just asref -> do -- The continuation has already been followed at this position.
             modifySTRef asref $ mappend $ args a
-            parse ss env
+            parse embed ss env
           Nothing    -> do -- It hasn't.
             asref <- newSTRef $ args a
             writeSTRef argsRef $ Just asref
             ks  <- simplifyCont scont
             res <- lazyResults $ unResults =<< readSTRef asref
             let kstates = map (contToState pos res) ks
-            parse (kstates ++ ss)
+            parse embed
+                  (kstates ++ ss)
                   env {reset = writeSTRef argsRef Nothing >> reset env}
     Alts as (Pure f) -> do
       let args' = args . f
           sts   = [State a args' pos scont | a <- as]
-      parse (sts ++ ss) env
+      parse embed (sts ++ ss) env
     Alts as p -> do
       scont' <- newConts =<< newSTRef [Cont pure p args scont]
       let sts = [State a pure Previous scont' | a <- as]
-      parse (sts ++ ss) env
+      parse embed (sts ++ ss) env
     Many p q -> mdo
       r <- mkRule $ pure [] <|> (:) <$> p <*> NonTerminal r (Pure id)
-      parse (State (NonTerminal r q) args pos scont : ss) env
-    Named pr' n -> parse (State pr' args pos scont : ss)
+      parse embed (State (NonTerminal r q) args pos scont : ss) env
+    Named pr' n -> parse embed (State pr' args pos scont : ss)
                          env {names = n : names env}
-    Constraint pr' c -> parse (State pr' (test >=> args) pos scont : ss) env
-      where test x = if c x then return x else empty
+    Constraint pr' c -> do
+      let f x = Results $ do
+            embed (c x) >>= \case
+              False -> pure []
+              True -> unResults (args x)
+      parse embed (State pr' f pos scont : ss) env
 
 type Parser e i a = forall s. i -> ST s (Result s e i a)
 
@@ -299,12 +308,24 @@ type Parser e i a = forall s. i -> ST s (Result s e i a)
 -- | Create a parser from the given grammar.
 parser
   :: ListLike i t
-  => (forall r. Grammar r (Prod r e t a))
+  => (forall r. Grammar r Identity (Prod r Identity e t a))
   -> Parser e i a
 parser g i = do
   let nt x = NonTerminal x $ pure id
   s <- initialState =<< runGrammar (fmap nt . mkRule) g
-  parse [s] $ emptyParseEnv i
+  parse (pure . runIdentity) [s] $ emptyParseEnv i
+
+{-# INLINE parser' #-}
+-- | Create a parser from the given grammar.
+parser'
+  :: ListLike i t
+  => (forall x. m x -> x)
+  -> (forall r. Grammar r m (Prod r m e t a))
+  -> Parser e i a
+parser' run g i = do
+  let nt x = NonTerminal x $ pure id
+  s <- initialState =<< runGrammar (fmap nt . mkRule) g
+  parse (pure . run) [s] $ emptyParseEnv i
 
 -- | Return all parses from the result of a given parser. The result may
 -- contain partial parses. The 'Int's are the position at which a result was

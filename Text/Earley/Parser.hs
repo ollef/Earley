@@ -4,6 +4,7 @@ module Text.Earley.Parser
   , Result(..)
   , Parser
   , parser
+  , parser'
   , allParses
   , fullParses
   , report

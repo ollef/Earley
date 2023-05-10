@@ -46,10 +46,10 @@ tests = testGroup "Optional"
       @?= [(Nothing, ""), (Just 'a', "a")]
   ]
 
-optional_ :: Prod r Char Char (Maybe Char, Char)
+optional_ :: Prod r m Char Char (Maybe Char, Char)
 optional_ = (,) <$> optional (namedToken 'a') <*> namedToken 'b'
 
-optionalRule :: Grammar r (Prod r Char Char (Maybe Char, Char))
+optionalRule :: Grammar r m (Prod r m Char Char (Maybe Char, Char))
 optionalRule = mdo
   test <- rule $ (,) <$> optional (namedToken 'a') <*> namedToken 'b'
   return test

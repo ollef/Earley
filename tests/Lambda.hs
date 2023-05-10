@@ -90,7 +90,7 @@ instance Arbitrary Expr where
   shrink (App a b) = a : b : [App a' b' | a' <- shrink a, b' <- shrink b]
   shrink (Add a b) = a : b : [Add a' b' | a' <- shrink a, b' <- shrink b]
 
-grammar :: Grammar r (Prod r String Char Expr)
+grammar :: Grammar r m (Prod r m String Char Expr)
 grammar = mdo
   let v = asum (token <$> "ab")
         <?> "variable"

@@ -35,7 +35,7 @@ type Holey a = [Maybe a]
 
 -- | Create a grammar for parsing mixfix expressions.
 mixfixExpression
-  :: [[(Holey (Prod r e t ident), Associativity)]]
+  :: [[(Holey (Prod r m e t ident), Associativity)]]
   -- ^ A table of holey identifier parsers, with associativity information.
   -- The identifiers should be in groups of precedence levels listed from
   -- binding the least to the most tightly.
@@ -46,13 +46,13 @@ mixfixExpression
   --
   -- Note that this rule also applies to identifiers with multiple consecutive
   -- holes, e.g. "if__" --- the associativity then applies to both holes.
-  -> Prod r e t expr
+  -> Prod r m e t expr
   -- ^ An atom, i.e. what is parsed at the lowest level. This will
   -- commonly be a (non-mixfix) identifier or a parenthesised expression.
   -> (Holey ident -> [expr] -> expr)
   -- ^ How to combine the successful application of a holey identifier to its
   -- arguments into an expression.
-  -> Grammar r (Prod r e t expr)
+  -> Grammar r m (Prod r m e t expr)
 mixfixExpression table atom app = mixfixExpressionSeparate table' atom
   where
     table' = [[(holey, assoc, app) | (holey, assoc) <- row] | row <- table]
@@ -60,7 +60,7 @@ mixfixExpression table atom app = mixfixExpressionSeparate table' atom
 -- | A version of 'mixfixExpression' with a separate semantic action for each
 -- individual 'Holey' identifier.
 mixfixExpressionSeparate
-  :: [[(Holey (Prod r e t ident), Associativity, Holey ident -> [expr] -> expr)]]
+  :: [[(Holey (Prod r m e t ident), Associativity, Holey ident -> [expr] -> expr)]]
   -- ^ A table of holey identifier parsers, with associativity information and
   -- semantic actions.  The identifiers should be in groups of precedence
   -- levels listed from binding the least to the most tightly.
@@ -71,10 +71,10 @@ mixfixExpressionSeparate
   --
   -- Note that this rule also applies to identifiers with multiple consecutive
   -- holes, e.g. "if__" --- the associativity then applies to both holes.
-  -> Prod r e t expr
+  -> Prod r m e t expr
   -- ^ An atom, i.e. what is parsed at the lowest level. This will
   -- commonly be a (non-mixfix) identifier or a parenthesised expression.
-  -> Grammar r (Prod r e t expr)
+  -> Grammar r m (Prod r m e t expr)
 mixfixExpressionSeparate table atom = mdo
   expr <- foldrM ($) atom $ map (level expr) table
   return expr

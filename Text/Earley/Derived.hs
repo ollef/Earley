@@ -8,36 +8,37 @@ import qualified Data.ListLike as ListLike
 
 import Text.Earley.Grammar
 import Text.Earley.Parser
+import Data.Functor.Identity (Identity)
 
 -- | Match a token that satisfies the given predicate. Returns the matched
 -- token. See also 'terminal'.
 {-# INLINE satisfy #-}
-satisfy :: (t -> Bool) -> Prod r e t t
+satisfy :: (t -> Bool) -> Prod r m e t t
 satisfy p = terminal ((<$) <*> guard . p)
 
 -- | Match a single token.
-token :: Eq t => t -> Prod r e t t
+token :: Eq t => t -> Prod r m e t t
 token x = satisfy (== x)
 
 -- | Match a single token and give it the name of the token.
-namedToken :: Eq t => t -> Prod r t t t
+namedToken :: Eq t => t -> Prod r m t t t
 namedToken x = token x <?> x
 
 -- | Match a single token with any value
-anyToken :: Prod r e t t
+anyToken :: Prod r m e t t
 anyToken = terminal Just
 
 -- | Match a list of tokens in sequence.
 {-# INLINE list #-}
-list :: Eq t => [t] -> Prod r e t [t]
+list :: Eq t => [t] -> Prod r m e t [t]
 list = listLike
 
 -- | Match a 'ListLike' of tokens in sequence.
 {-# INLINE listLike #-}
-listLike :: (Eq t, ListLike i t) => i -> Prod r e t i
+listLike :: (Eq t, ListLike i t) => i -> Prod r m e t i
 listLike = ListLike.foldr (liftA2 ListLike.cons . satisfy . (==)) (pure ListLike.empty)
 
 -- | Whether or not the grammar matches the input string. Equivalently,
 -- whether the given input is in the language described by the grammars.
-matches :: ListLike i t => (forall r. Grammar r (Prod r e t a)) -> i -> Bool
+matches :: ListLike i t => (forall r. Grammar r Identity (Prod r Identity e t a)) -> i -> Bool
 matches grammar = not . null . fst . fullParses (parser grammar)

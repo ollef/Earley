@@ -59,7 +59,7 @@ data AST
   | Plus AST AST
   deriving (Eq, Ord, Show)
 
-grammar :: Associativity -> Grammar r (Prod r String String AST)
+grammar :: Associativity -> Grammar r m (Prod r m String String AST)
 grammar a = mdo
     atomicExpr <- rule $ Var <$> satisfy (/= "+")
 

@@ -8,10 +8,10 @@ import Test.Tasty.HUnit as HU
 
 import Text.Earley
 
-oneToken :: Grammar r (Prod r () t t)
+oneToken :: Grammar r m (Prod r m () t t)
 oneToken = rule anyToken
 
-someTokens :: Grammar r (Prod r () t [t])
+someTokens :: Grammar r m (Prod r m () t [t])
 someTokens = rule (some anyToken)
 
 tests :: TestTree

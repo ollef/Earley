@@ -40,7 +40,7 @@ issue14Length (Pure ()) = 1
 issue14Length (Alt a b) = issue14Length a + issue14Length b
 issue14Length (Ap a b)  = issue14Length a * issue14Length b
 
-issue14 :: Issue14 () -> Grammar r (Prod r () Char ())
+issue14 :: Issue14 () -> Grammar r m (Prod r m () Char ())
 issue14 tree = do
   emptyRule <- rule $ pure ()
   let x = go emptyRule tree
