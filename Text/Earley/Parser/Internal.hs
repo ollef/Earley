@@ -14,6 +14,8 @@ import Text.Earley.Grammar
 import Data.Monoid
 #endif
 import Data.Semigroup
+import Control.Category (Category)
+import qualified Control.Category as C
 
 -------------------------------------------------------------------------------
 -- * Concrete rules and productions
@@ -108,20 +110,43 @@ data BirthPos
 -- | An Earley state with result type @a@.
 data State s r e t a where
   State :: !(ProdR s r e t a)
-        -> !(a -> Results s b)
+        -> !(ResultsCont s a b)
         -> !BirthPos
         -> !(Conts s r e t b c)
         -> State s r e t c
   Final :: !(Results s a) -> State s r e t a
 
+newtype ResultsCont s a b = ResultsCont {unResultsCont :: a -> Results s b}
+  deriving(Functor)
+
+instance Applicative (ResultsCont s a) where
+  pure = ResultsCont . const . pure
+  ResultsCont f <*> ResultsCont x = ResultsCont (\a -> f a <*> x a)
+
+instance Monad (ResultsCont s a) where
+  ResultsCont x >>= k = ResultsCont (\a -> ($ a) . unResultsCont . k =<< x a)
+
+instance Category (ResultsCont s) where
+  id = ResultsCont pure
+  ResultsCont f . ResultsCont g = ResultsCont (f <=< g)
+
+resultArr :: (a -> b) -> ResultsCont s a b
+resultArr f = ResultsCont (pure . f)
+
+resultBind :: ResultsCont s a b -> Results s a -> Results s b
+resultBind (ResultsCont f) x = f =<< x
+
+manyResults :: [a] -> Results s a
+manyResults = Results. pure
+
 -- | A continuation accepting an @a@ and producing a @b@.
 data Cont s r e t a b where
-  Cont      :: !(a -> Results s b)
+  Cont      :: !(ResultsCont s a b)
             -> !(ProdR s r e t (b -> c))
-            -> !(c -> Results s d)
+            -> !(ResultsCont s c d)
             -> !(Conts s r e t d e')
             -> Cont s r e t a e'
-  FinalCont :: (a -> Results s c) -> Cont s r e t a c
+  FinalCont :: ResultsCont s a c -> Cont s r e t a c
 
 data Conts s r e t a c = Conts
   { conts     :: !(STRef s [Cont s r e t a c])
@@ -131,13 +156,18 @@ data Conts s r e t a c = Conts
 newConts :: STRef s [Cont s r e t a c] -> ST s (Conts s r e t a c)
 newConts r = Conts r <$> newSTRef Nothing
 
-contraMapCont :: (b -> Results s a) -> Cont s r e t a c -> Cont s r e t b c
-contraMapCont f (Cont g p args cs) = Cont (f >=> g) p args cs
-contraMapCont f (FinalCont args)   = FinalCont (f >=> args)
+contraMapCont :: ResultsCont s b a -> Cont s r e t a c -> Cont s r e t b c
+contraMapCont f (Cont g p args cs) = Cont (f >>> g) p args cs
+contraMapCont f (FinalCont args)   = FinalCont (f >>> args)
 
 contToState :: BirthPos -> Results s a -> Cont s r e t a c -> State s r e t c
-contToState pos r (Cont g p args cs) = State p (\f -> r >>= g >>= args . f) pos cs
-contToState _   r (FinalCont args)   = Final $ r >>= args
+contToState pos r (Cont g p args cs) =
+  State
+    p
+    (ResultsCont $ \f -> unResultsCont (args <<< resultArr f <<< g) =<< r)
+    pos
+    cs
+contToState _ r (FinalCont args) = Final $ resultBind args r
 
 -- | Strings of non-ambiguous continuations can be optimised by removing
 -- indirections.
@@ -146,7 +176,7 @@ simplifyCont Conts {conts = cont} = readSTRef cont >>= go False
   where
     go !_ [Cont g (Pure f) args cont'] = do
       ks' <- simplifyCont cont'
-      go True $ map (contraMapCont $ g >=> args . f) ks'
+      go True $ map (contraMapCont $ args <<< resultArr f <<< g) ks'
     go True ks = do
       writeSTRef cont ks
       return ks
@@ -157,7 +187,7 @@ simplifyCont Conts {conts = cont} = readSTRef cont >>= go False
 -------------------------------------------------------------------------------
 -- | Given a grammar, construct an initial state.
 initialState :: ProdR s a e t a -> ST s (State s a e t a)
-initialState p = State p pure Previous <$> (newConts =<< newSTRef [FinalCont pure])
+initialState p = State p C.id Previous <$> (newConts =<< newSTRef [FinalCont C.id])
 
 -------------------------------------------------------------------------------
 -- * Parsing
@@ -218,7 +248,8 @@ emptyParseEnv i = ParseEnv
                      -> ST s (Result s e [t] a) #-}
 -- | The internal parsing routine
 parse :: ListLike i t
-      => [State s a e t a] -- ^ States to process at this position
+      => [State s a e t a]
+      -- ^ States to process at this position, S(k) in the nomenclature
       -> ParseEnv s e i t a
       -> ST s (Result s e i a)
 parse [] env@ParseEnv {results = [], next = []} = do
@@ -239,25 +270,36 @@ parse [] env = do
 parse (st:ss) env = case st of
   Final res -> parse ss env {results = unResults res : results env}
   State pr args pos scont -> case pr of
+    -- Scanning operation
     Terminal f p -> case ListLike.uncons (input env) >>= f . fst of
-      Just a -> parse ss env {next = State p (args . ($ a)) Previous scont
+      -- We have a state S(k) of the form (X → α • a β, j)
+      -- and thus add (X → α a • β, j) to S(k+1)
+      -- In our case, advancing the dot past a terminal means applying the
+      -- results of that terminal to the input of the continuation
+      Just a -> parse ss env {next = State p (args <<< resultArr ($ a)) Previous scont
                                    : next env}
       Nothing -> parse ss env
+    -- Prediction operation
+    -- For every state in S(k) of the form (X → α • Y β, j)...
     NonTerminal r p -> do
       rkref <- readSTRef $ ruleConts r
       ks    <- readSTRef rkref
-      writeSTRef rkref (Cont pure p args scont : ks)
+      writeSTRef rkref (Cont C.id p args scont : ks)
       ns    <- unResults $ ruleNulls r
+      -- ...add (Y → • γ, k) to S(k) for every production in the grammar with Y
+      -- on the left-hand side (Y → γ).
       let addNullState
             | null ns = id
             | otherwise = (:)
-                        $ State p (\f -> Results (pure $ map f ns) >>= args) pos scont
+                        $ State p (ResultsCont $ \f -> args `resultBind` manyResults (map f ns)) pos scont
       if null ks then do -- The rule has not been expanded at this position.
-        st' <- State (ruleProd r) pure Current <$> newConts rkref
+        st' <- State (ruleProd r) C.id Current <$> newConts rkref
         parse (addNullState $ st' : ss)
               env {reset = resetConts r >> reset env}
       else -- The rule has already been expanded at this position.
         parse (addNullState ss) env
+    -- Completion operation
+    -- For every state in S(k) of the form (Y → γ •, j)...
     Pure a
       -- Skip following continuations that stem from the current position; such
       -- continuations are handled separately.
@@ -267,30 +309,41 @@ parse (st:ss) env = case st of
         masref  <- readSTRef argsRef
         case masref of
           Just asref -> do -- The continuation has already been followed at this position.
-            modifySTRef asref $ mappend $ args a
+            modifySTRef asref $ mappend $ unResultsCont args a
             parse ss env
           Nothing    -> do -- It hasn't.
-            asref <- newSTRef $ args a
+            -- ...find all states in S(j) of the form (X → α • Y β, i) and add
+            -- (X → α Y • β, i) to S(k).
+            -- In this implementation, advancing the dot requires applying 'a'
+            -- here to the continuation.
+            asref <- newSTRef $ unResultsCont args a
             writeSTRef argsRef $ Just asref
             ks  <- simplifyCont scont
             res <- lazyResults $ unResults =<< readSTRef asref
             let kstates = map (contToState pos res) ks
             parse (kstates ++ ss)
                   env {reset = writeSTRef argsRef Nothing >> reset env}
+    -- For every alternative, add a state for that production all pointing to
+    -- the same continuation.
     Alts as (Pure f) -> do
-      let args' = args . f
+      let args' = args <<< ResultsCont (\x -> pure (f x))
           sts   = [State a args' pos scont | a <- as]
       parse (sts ++ ss) env
     Alts as p -> do
-      scont' <- newConts =<< newSTRef [Cont pure p args scont]
-      let sts = [State a pure Previous scont' | a <- as]
+      scont' <- newConts =<< newSTRef [Cont C.id p args scont]
+      let sts = [State a C.id Previous scont' | a <- as]
       parse (sts ++ ss) env
+    -- Rustle up a left-recursive non-terminal and add it to the states to be
+    -- processed next.
     Many p q -> mdo
       r <- mkRule $ pure [] <|> (:) <$> p <*> NonTerminal r (Pure id)
       parse (State (NonTerminal r q) args pos scont : ss) env
+    -- Insert a state for the named production, but add the name to the list of
+    -- names for this position
     Named pr' n -> parse (State pr' args pos scont : ss)
                          env {names = n : names env}
-    Constraint pr' c -> parse (State pr' (test >=> args) pos scont : ss) env
+    -- Insert a state whose continuation filters any results
+    Constraint pr' c -> parse (State pr' (ResultsCont test >>> args) pos scont : ss) env
       where test x = if c x then return x else empty
 
 type Parser e i a = forall s. i -> ST s (Result s e i a)
