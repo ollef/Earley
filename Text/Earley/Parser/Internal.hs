@@ -17,6 +17,7 @@ import Data.Semigroup
 import Control.Category (Category)
 import qualified Control.Category as C
 import Data.Traversable (for)
+import Data.Functor.Contravariant (contramap)
 
 -------------------------------------------------------------------------------
 -- * Concrete rules and productions
@@ -152,7 +153,7 @@ manyResults = Results. pure
 -- | A continuation accepting an @a@ and producing a @b@.
 data Cont s r e t a b where
   Cont      :: !(ResultsCont s a b)
-            -> !(ProdR s r e t (b -> c))
+            -> !(ProdR s r e t ([b] -> [c]))
             -> !(ResultsCont s c d)
             -> !(Conts s r e t d e')
             -> Cont s r e t a e'
@@ -174,7 +175,7 @@ contToState :: BirthPos -> Results s a -> Cont s r e t a c -> State s r e t c
 contToState pos r (Cont g p args cs) =
   State
     p
-    (ResultsCont $ \f -> unResultsCont (args <<< resultArr f <<< g) =<< r)
+    (ResultsCont $ \f -> (args <<< resultArrs' f <<< g) `resultBind` r)
     pos
     cs
 contToState _ r (FinalCont args) = Final $ resultBind args r
@@ -186,7 +187,7 @@ simplifyCont Conts {conts = cont} = readSTRef cont >>= go False
   where
     go !_ [Cont g (Pure f) args cont'] = do
       ks' <- simplifyCont cont'
-      go True $ map (contraMapCont $ args <<< resultArr f <<< g) ks'
+      go True $ map (contraMapCont $ args <<< resultArr' f <<< g) ks'
     go True ks = do
       writeSTRef cont ks
       return ks
@@ -286,7 +287,9 @@ parse (st:ss) env = case st of
       -- and thus add (X → α a • β, j) to S(k+1)
       -- In our case, advancing the dot past a terminal means applying the
       -- results of that terminal to the input of the continuation
-      Just a -> parse ss env {next = State p (args <<< resultArr ($ a)) Previous scont
+      -- TODO: applying args to a single 'a' here is not correct in the
+      -- presence of disambiguation
+      Just a -> parse ss env {next = State p (args <<< resultArrs [($ a)]) Previous scont
                                    : next env}
       Nothing -> parse ss env
     -- Prediction operation
@@ -294,14 +297,14 @@ parse (st:ss) env = case st of
     NonTerminal r p -> do
       rkref <- readSTRef $ ruleConts r
       ks    <- readSTRef rkref
-      writeSTRef rkref (Cont C.id p args scont : ks)
+      writeSTRef rkref (Cont C.id (fmap fmap p) args scont : ks)
       ns    <- unResults $ ruleNulls r
       -- ...add (Y → • γ, k) to S(k) for every production in the grammar with Y
       -- on the left-hand side (Y → γ).
       let addNullState
             | null ns = id
             | otherwise = (:)
-                        $ State p (ResultsCont $ \f -> args `resultBind` manyResults (map f ns)) pos scont
+                        $ State p (ResultsCont $ \f -> args `resultBind` manyResults (liftA2 ($) f ns)) pos scont
       if null ks then do -- The rule has not been expanded at this position.
         st' <- State (ruleProd r) C.id Current <$> newConts rkref
         parse (addNullState $ st' : ss)
@@ -319,28 +322,39 @@ parse (st:ss) env = case st of
         masref  <- readSTRef argsRef
         case masref of
           Just asref -> do -- The continuation has already been followed at this position.
-            modifySTRef asref $ mappend $ unResultsCont args a
+            -- TODO: Applying args to a single a is incorrect in the presence
+            -- of disambiguation
+            modifySTRef asref $ mappend $ unResultsCont args [a]
             parse ss env
           Nothing    -> do -- It hasn't.
             -- ...find all states in S(j) of the form (X → α • Y β, i) and add
             -- (X → α Y • β, i) to S(k).
             -- In this implementation, advancing the dot requires applying 'a'
             -- here to the continuation.
-            asref <- newSTRef $ unResultsCont args a
+            -- TODO: Applying args to a single a is incorrect in the presence
+            -- of disambiguation
+            asref <- newSTRef $ unResultsCont args [a]
             writeSTRef argsRef $ Just asref
             ks  <- simplifyCont scont
             res <- lazyResults $ unResults =<< readSTRef asref
             let kstates = map (contToState pos res) ks
             parse (kstates ++ ss)
                   env {reset = writeSTRef argsRef Nothing >> reset env}
+    -- We need to add p with a continuation which takes into account 'd'
+    Disamb p (Pure d) -> do
+      parse (State p (args <<< resultArr' d) pos scont : ss) env
+    Disamb p d -> do
+      scont' <- newConts =<< newSTRef [Cont C.id d args scont]
+      parse (State p C.id Previous scont' : ss) env
     -- For every alternative, add a state for that production all pointing to
     -- the same continuation.
     Alts as (Pure f) -> do
-      let args' = args <<< ResultsCont (\x -> pure (f x))
+      -- TODO: is resultArrs safe in the presence of disambiguation
+      let args' = args <<< resultArrs [f] 
           sts   = [State a args' pos scont | a <- as]
       parse (sts ++ ss) env
     Alts as p -> do
-      scont' <- newConts =<< newSTRef [Cont C.id p args scont]
+      scont' <- newConts =<< newSTRef [Cont C.id (fmap fmap p) args scont]
       let sts = [State a C.id Previous scont' | a <- as]
       parse (sts ++ ss) env
     -- Rustle up a left-recursive non-terminal and add it to the states to be
@@ -353,8 +367,8 @@ parse (st:ss) env = case st of
     Named pr' n -> parse (State pr' args pos scont : ss)
                          env {names = n : names env}
     -- Insert a state whose continuation filters any results
-    Constraint pr' c -> parse (State pr' (ResultsCont test >>> args) pos scont : ss) env
-      where test x = if c x then return x else empty
+    Constraint pr' c -> parse (State pr' (args <<< test) pos scont : ss) env
+      where test = resultArr' (filter c)
 
 type Parser e i a = forall s. i -> ST s (Result s e i a)
 

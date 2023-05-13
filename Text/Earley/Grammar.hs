@@ -74,9 +74,6 @@ terminal p = Terminal p $ Pure id
 constraint :: (a -> Bool) -> Prod r e t a -> Prod r e t a
 constraint = flip Constraint
 
-disambiguate :: ([a] -> [b]) -> Prod r e t a -> Prod r e t b
-disambiguate d = flip Disamb (Pure d)
-
 -- | Lifted instance: @(<>) = 'liftA2' ('<>')@
 instance Semigroup a => Semigroup (Prod r e t a) where
   (<>) = liftA2 (Data.Semigroup.<>)
@@ -184,6 +181,12 @@ instance MonadFix (Grammar r) where
 -- | Create a new non-terminal by giving its production.
 rule :: Prod r e t a -> Grammar r (Prod r e t a)
 rule p = RuleBind p return
+
+-- | Create a non-terminal which is able to disambiguate possible parses
+disambiguate :: ([a] -> b) -> Prod r e t a -> Grammar r (Prod r e t b)
+disambiguate d p = do
+  r <- rule p
+  pure $ Disamb r (Pure (pure . d))
 
 -- | Run a grammar, given an action to perform on productions to be turned into
 -- non-terminals.
