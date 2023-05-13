@@ -1,4 +1,4 @@
-{-# LANGUAGE CPP, BangPatterns, DeriveFunctor, GADTs, Rank2Types, RecursiveDo #-}
+{-# LANGUAGE CPP, BangPatterns, DeriveFunctor, GADTs, Rank2Types, RecursiveDo, LambdaCase #-}
 -- | This module exposes the internals of the package: its API may change
 -- independently of the PVP-compliant version number.
 module Text.Earley.Parser.Internal where
@@ -16,6 +16,7 @@ import Data.Monoid
 import Data.Semigroup
 import Control.Category (Category)
 import qualified Control.Category as C
+import Data.Traversable (for)
 
 -------------------------------------------------------------------------------
 -- * Concrete rules and productions
@@ -46,6 +47,10 @@ prodNulls prod = case prod of
   Many a p        -> prodNulls (pure [] <|> pure <$> a) <**> prodNulls p
   Named p _       -> prodNulls p
   Constraint p _  -> prodNulls p
+  Disamb p d      -> Results $ do
+    ps <- unResults $ prodNulls p
+    ds <- unResults $ prodNulls d
+    pure $ ($ ps) =<< ds
 
 -- | Remove (some) nulls from a production
 removeNulls :: ProdR s r e t a -> ProdR s r e t a
@@ -58,6 +63,7 @@ removeNulls prod = case prod of
   Many {}          -> prod
   Named p n        -> Named (removeNulls p) n
   Constraint p n   -> Constraint (removeNulls p) n
+  Disamb p d       -> Disamb (removeNulls p) d
 
 type ProdR s r e t a = Prod (Rule s r) e t a
 
