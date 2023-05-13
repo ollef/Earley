@@ -122,25 +122,29 @@ data State s r e t a where
         -> State s r e t c
   Final :: !(Results s a) -> State s r e t a
 
-newtype ResultsCont s a b = ResultsCont {unResultsCont :: a -> Results s b}
+newtype ResultsCont s a b = ResultsCont {unResultsCont :: [a] -> Results s b}
   deriving(Functor)
 
-instance Applicative (ResultsCont s a) where
-  pure = ResultsCont . const . pure
-  ResultsCont f <*> ResultsCont x = ResultsCont (\a -> f a <*> x a)
-
-instance Monad (ResultsCont s a) where
-  ResultsCont x >>= k = ResultsCont (\a -> ($ a) . unResultsCont . k =<< x a)
-
 instance Category (ResultsCont s) where
-  id = ResultsCont pure
-  ResultsCont f . ResultsCont g = ResultsCont (f <=< g)
+  id = ResultsCont (Results . pure)
+  ResultsCont f . ResultsCont g = ResultsCont $ \xs -> Results $ do
+    ys <- unResults (g xs)
+    unResults (f ys)
 
-resultArr :: (a -> b) -> ResultsCont s a b
-resultArr f = ResultsCont (pure . f)
+resultArr' :: ([a] -> [b]) -> ResultsCont s a b
+resultArr' f = ResultsCont (Results . pure . f)
+
+resultArrs :: [a -> b] -> ResultsCont s a b
+resultArrs f = ResultsCont (Results . pure . liftA2 ($) f)
+
+resultArrs' :: [[a] -> [b]] -> ResultsCont s a b
+resultArrs' f = ResultsCont (Results . pure . go)
+  where go x = ($ x) =<< f
 
 resultBind :: ResultsCont s a b -> Results s a -> Results s b
-resultBind (ResultsCont f) x = f =<< x
+resultBind (ResultsCont f) (Results x) = Results $ do
+  y <- x
+  unResults (f y)
 
 manyResults :: [a] -> Results s a
 manyResults = Results. pure
