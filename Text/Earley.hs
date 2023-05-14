@@ -1,7 +1,7 @@
 -- | Parsing all context-free grammars using Earley's algorithm.
 module Text.Earley
   ( -- * Context-free grammars
-    Prod, terminal, (<?>), constraint, Grammar, rule
+    Prod, terminal, (<?>), constraint, disambiguate, Grammar, rule
   , -- * Derived operators
     satisfy, token, namedToken, anyToken, list, listLike, matches
   , -- * Parsing
