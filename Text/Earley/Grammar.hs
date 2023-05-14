@@ -5,6 +5,7 @@ module Text.Earley.Grammar
   , terminal
   , (<?>)
   , constraint
+  , disambiguate
   , alts
   , Grammar(..)
   , rule
@@ -57,6 +58,8 @@ data Prod r e t a where
   Named       :: !(Prod r e t a) -> e -> Prod r e t a
   -- Non-context-free extension: conditioning on the parsed output.
   Constraint  :: !(Prod r e t a) -> (a -> Bool) -> Prod r e t a
+  --
+  Disamb      :: !(Prod r e t a) -> !(Prod r e t ([a] -> [b])) -> Prod r e t b
 
 -- | Match a token for which the given predicate returns @Just a@,
 -- and return the @a@.
@@ -88,6 +91,7 @@ instance Functor (Prod r e t) where
   fmap f (Alts as p)       = Alts as $ fmap (f .) p
   fmap f (Many p q)        = Many p $ fmap (f .) q
   fmap f (Named p n)       = Named (fmap f p) n
+  fmap f (Disamb p d)      = Disamb p (fmap (fmap (fmap f)) d)
 
 -- | Smart constructor for alternatives.
 alts :: [Prod r e t a] -> Prod r e t (a -> b) -> Prod r e t b
@@ -110,6 +114,7 @@ instance Applicative (Prod r e t) where
   Alts as p       <*> q = alts as $ flip <$> p <*> q
   Many a p        <*> q = Many a $ flip <$> p <*> q
   Named p n       <*> q = Named (p <*> q) n
+  Disamb p d      <*> q = Disamb p ((\a b c -> fmap ($ b) (a c)) <$> d <*> q)
 
 instance Alternative (Prod r e t) where
   empty = Alts [] $ pure id
@@ -176,6 +181,12 @@ instance MonadFix (Grammar r) where
 -- | Create a new non-terminal by giving its production.
 rule :: Prod r e t a -> Grammar r (Prod r e t a)
 rule p = RuleBind p return
+
+-- | Create a non-terminal which is able to disambiguate possible parses
+disambiguate :: ([a] -> b) -> Prod r e t a -> Grammar r (Prod r e t b)
+disambiguate d p = do
+  r <- rule p
+  pure $ Disamb r (Pure (pure . d))
 
 -- | Run a grammar, given an action to perform on productions to be turned into
 -- non-terminals.
