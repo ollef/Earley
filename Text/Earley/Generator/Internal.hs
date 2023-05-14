@@ -75,7 +75,7 @@ lazyResults stas = mdo
   return $ Results $ join $ readSTRef resultsRef
 
 instance Applicative (Results s t) where
-  pure  = return
+  pure x = Results $ pure [(x, mempty)]
   (<*>) = ap
 
 instance Alternative (Results t s) where
@@ -83,7 +83,7 @@ instance Alternative (Results t s) where
   Results sxs <|> Results sys = Results $ (<|>) <$> sxs <*> sys
 
 instance Monad (Results t s) where
-  return x = Results $ pure [(x, mempty)]
+  return = pure
   Results stxs >>= f = Results $ do
     xs <- stxs
     concat <$> mapM (\(x, ts) -> fmap (\(y, ts') -> (y, ts' ++ ts)) <$> unResults (f x)) xs
@@ -93,7 +93,7 @@ instance Semigroup (Results s t a) where
 
 instance Monoid (Results s t a) where
   mempty = empty
-  mappend = (<|>)
+  mappend = (<>)
 
 -------------------------------------------------------------------------------
 -- * States and continuations
