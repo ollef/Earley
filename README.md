@@ -1,4 +1,4 @@
-Earley [![Build Status](https://travis-ci.org/ollef/Earley.svg?branch=master)](https://travis-ci.org/ollef/Earley) [![Hackage](https://img.shields.io/hackage/v/Earley.svg)](https://hackage.haskell.org/package/Earley)
+Earley [![Hackage](https://img.shields.io/hackage/v/Earley.svg)](https://hackage.haskell.org/package/Earley)
 ======
 
 [Go to the API documentation on Hackage.](https://hackage.haskell.org/package/Earley)
