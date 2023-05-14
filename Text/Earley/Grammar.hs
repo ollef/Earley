@@ -78,7 +78,7 @@ instance Semigroup a => Semigroup (Prod r e t a) where
 -- | Lifted instance: @mempty = 'pure' 'mempty'@
 instance Monoid a => Monoid (Prod r e t a) where
   mempty  = pure mempty
-  mappend = liftA2 mappend
+  mappend = (<>)
 
 instance Functor (Prod r e t) where
   {-# INLINE fmap #-}
