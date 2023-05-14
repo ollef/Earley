@@ -134,7 +134,7 @@ contraMapCont f (Cont g p args cs) = Cont (f >=> g) p args cs
 contraMapCont f (FinalCont args)   = FinalCont (f >=> args)
 
 contToState :: BirthPos -> Results s t a -> Cont s r e t a c -> State s r e t c
-contToState pos r (Cont g p args cs) = State p (\f -> fmap f (r >>= g) >>= args) pos cs
+contToState pos r (Cont g p args cs) = State p (\f -> r >>= g >>= args . f) pos cs
 contToState _   r (FinalCont args)   = Final $ r >>= args
 
 -- | Strings of non-ambiguous continuations can be optimised by removing
@@ -144,7 +144,7 @@ simplifyCont Conts {conts = cont} = readSTRef cont >>= go False
   where
     go !_ [Cont g (Pure f) args cont'] = do
       ks' <- simplifyCont cont'
-      go True $ map (contraMapCont $ \b -> fmap f (g b) >>= args) ks'
+      go True $ map (contraMapCont $ g >=> args . f) ks'
     go True ks = do
       writeSTRef cont ks
       return ks
@@ -217,7 +217,7 @@ generate (st:ss) env = case st of
       let addNullState
             | null ns = id
             | otherwise = (:)
-                        $ State p (\f -> f <$> Results (pure ns) >>= args) pos scont
+                        $ State p (\f -> Results (pure ns) >>= args . f) pos scont
       if null ks then do -- The rule has not been expanded at this position.
         st' <- State (ruleProd r) pure Current <$> newConts rkref
         generate (addNullState $ st' : ss)
@@ -239,7 +239,7 @@ generate (st:ss) env = case st of
             asref <- newSTRef $ args a
             writeSTRef argsRef $ Just asref
             ks  <- simplifyCont scont
-            res <- lazyResults $ join $ unResults <$> readSTRef asref
+            res <- lazyResults $ unResults =<< readSTRef asref
             let kstates = map (contToState pos res) ks
             generate (kstates ++ ss)
                   env {reset = writeSTRef argsRef Nothing >> reset env}

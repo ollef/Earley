@@ -1,4 +1,4 @@
-{-# LANGUAGE CPP, BangPatterns, DeriveFunctor, GADTs, Rank2Types, RecursiveDo #-}
+{-# LANGUAGE CPP, BangPatterns, DeriveFunctor, GADTs, TupleSections, Rank2Types, RecursiveDo #-}
 -- | This module exposes the internals of the package: its API may change
 -- independently of the PVP-compliant version number.
 module Text.Earley.Parser.Internal where
@@ -324,7 +324,7 @@ allParses p i = runST $ p i >>= go
       Ended rep           -> return ([], rep)
       Parsed mas cpos _ k -> do
         as <- mas
-        fmap (first (zip as (repeat cpos) ++)) $ go =<< k
+        fmap (first (map (, cpos) as ++)) $ go =<< k
 
 {-# INLINE fullParses #-}
 -- | Return all parses that reached the end of the input from the result of a
